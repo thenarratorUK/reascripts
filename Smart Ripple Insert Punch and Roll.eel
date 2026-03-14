@@ -1,0 +1,472 @@
+// Smart Ripple Insert Punch and Roll (EEL, Silence-Aware)
+//
+// Behaviour summary (matches Lua version + silence-aware rewind):
+//
+// 0. If Ripple Insert Placeholder left a track GUID hint, reselect that track.
+// 1. If transport is playing/recording when called:
+//      - Run Ripple Insert End (your existing script).
+//      - Instead of simply moving the edit cursor back by REWIND_EXTRA,
+//        find a nearby silence gap on the target track and place the
+//        edit cursor at the centre of that gap. Fallback: plain REWIND_EXTRA.
+// 2. Split at the edit cursor and delete from that split to the stored
+//    Ripple Insert End position, with Ripple Editing: All Tracks.
+// 3. Clear time selection.
+// 4. Start Ripple Insert again with temporary pre-roll, restoring pre-roll
+//    state afterwards.
+//
+// Silence search:
+//   - First pass: forwards from (base - REWIND_EXTRA) to (base - REWIND_EXTRA/2).
+//   - If none, second pass: backwards from (base - REWIND_EXTRA) to (base - 2*REWIND_EXTRA).
+//   - A gap is MIN_SILENCE_MS of continuous samples below SILENCE_THRESH_DBFS.
+//   - Punch-in cursor is placed at centre of first such gap.
+//   - If no gap is found, fallback = base - REWIND_EXTRA (clamped to >= 0).
+
+// -----------------------------------------------------------------------------
+// Parameters
+// -----------------------------------------------------------------------------
+
+REWIND_EXTRA        = 3.0;   // seconds to rewind from the reference position
+SILENCE_THRESH_DBFS = -45;   // dBFS threshold for "silence"
+MIN_SILENCE_MS      = 50;    // minimum continuous silence length to count as gap
+
+preview_len = 3.0; // seconds of extra preview playback before punch-in
+
+g_preview_punch_pos   = 0;
+g_preview_preRollOrig = 0;
+g_preview_end_time    = 0;
+g_preview_active      = 0;
+
+RI_START_CMD = 0; // command ID for Ripple Insert Start script
+
+// ExtState section/key used by Ripple Insert Placeholder to remember the track
+PH_SECTION = "DW_RippleInsertPlaceholder";
+PH_KEY_LAST_TRACK_GUID = "LastRecordedTrackGUID";
+
+// Global string buffers
+#RI_guid_str      = "";
+#RI_tmp_guid      = "";
+#RI_insertEndStr  = "";
+
+// Global for delayed pre-roll restore
+t0 = 0;
+
+// -----------------------------------------------------------------------------
+// Utility: dBFS → linear
+// -----------------------------------------------------------------------------
+function ValFromdB(dB_val)(
+  pow(10, dB_val/20);
+);
+
+// -----------------------------------------------------------------------------
+// Utility: project samplerate (fallback 44100)
+// -----------------------------------------------------------------------------
+function GetProjectSamplerate() local(sr)(
+  sr = GetSetProjectInfo(0, "PROJECT_SRATE", 0, 0);
+  sr <= 0 ? sr = 44100 : 0;
+  sr;
+);
+
+// -----------------------------------------------------------------------------
+// Utility: select only a given track
+// -----------------------------------------------------------------------------
+function SelectOnlyTrack(track) local(ct, i, tr)(
+  track != 0 ? (
+    ct = CountTracks(0);
+    i = 0;
+    loop(ct,
+      tr = GetTrack(0, i);
+      SetTrackSelected(tr, tr == track ? 1 : 0);
+      i += 1;
+    );
+  );
+);
+
+// -----------------------------------------------------------------------------
+// Utility: find track by GUID string (matches Lua behaviour)
+// Uses global #RI_guid_str and #RI_tmp_guid
+// -----------------------------------------------------------------------------
+function FindTrackByGuid() local(ct, i, tr)(
+  strlen(#RI_guid_str) == 0 ? (
+    0;
+  ) : (
+    ct = CountTracks(0);
+    i = 0;
+    loop(ct,
+      tr = GetTrack(0, i);
+      #RI_tmp_guid = "";
+      GetTrackGUID(#RI_tmp_guid, tr);
+      !strcmp(#RI_tmp_guid, #RI_guid_str) ? (
+        tr;
+        i = ct; // break
+      ) : (
+        i += 1;
+      );
+    );
+  );
+);
+
+// -----------------------------------------------------------------------------
+// Utility: target track for silence analysis
+// Prefer first selected track, otherwise first armed track
+// -----------------------------------------------------------------------------
+function GetTargetTrack() local(selCount, tr, trackCount, i, tmp)(
+  tr = 0;
+  selCount = CountSelectedTracks(0);
+  selCount > 0 ? (
+    tr = GetSelectedTrack(0, 0);
+  ) : (
+    trackCount = CountTracks(0);
+    i = 0;
+    loop(trackCount,
+      tmp = GetTrack(0, i);
+      (GetMediaTrackInfo_Value(tmp, "I_RECARM") == 1 && tr == 0) ? tr = tmp : 0;
+      i += 1;
+    );
+  );
+  tr;
+);
+
+// -----------------------------------------------------------------------------
+// Core: scan a range for the first silence gap
+//
+// reverse = 0: forward in time
+// reverse = 1: backward in time
+// -----------------------------------------------------------------------------
+function ScanRangeForSilence(AA, samplerate, n_channels,
+                             range_start, range_end, reverse,
+                             threshold_amp, silence_samples_needed)
+local(range_len, range_len_smpls,
+     block_size, n_blocks, rest_smples,
+     total_buffer_size, samplebuffer,
+     starttime_sec, cur_block,
+     frame_idx, offs,
+     spl, val, ch, sample_pos,
+     silent_run, silence_start_time, silence_end_time,
+     found_center, center, i, this_block_size)(
+  center = -1;
+
+  range_len = range_end - range_start;
+  range_len <= 0 ? (
+    center;
+  ) : (
+    range_len_smpls = floor(range_len * samplerate);
+
+    block_size = floor(16384 / (n_channels * max(1, n_channels)));
+    block_size <= 0 ? block_size = 256 : 0;
+
+    n_blocks    = range_len_smpls / block_size;
+    rest_smples = range_len_smpls - (n_blocks * block_size);
+
+    total_buffer_size = 65536;
+    samplebuffer = 0;
+    i = 0;
+    loop(total_buffer_size,
+      samplebuffer[i] = 0;
+      i += 1;
+    );
+
+    reverse == 1 ? (
+      starttime_sec = range_end - (block_size / samplerate);
+      starttime_sec < range_start ? starttime_sec = range_start : 0;
+    ) : (
+      starttime_sec = range_start;
+    );
+
+    cur_block      = 0;
+    found_center   = 0;
+    silent_run     = 0;
+    silence_start_time = 0;
+    silence_end_time   = 0;
+
+    while(cur_block <= n_blocks && found_center == 0)(
+      this_block_size = block_size;
+      cur_block == n_blocks ? (
+        this_block_size += rest_smples;
+      ) : 0;
+
+      i = 0;
+      loop(this_block_size * n_channels,
+        samplebuffer[i] = 0;
+        i += 1;
+      );
+
+      GetAudioAccessorSamples(AA, samplerate, n_channels,
+                              starttime_sec, this_block_size, samplebuffer);
+
+      reverse == 1 ? (
+        frame_idx = this_block_size - 1;
+      ) : (
+        frame_idx = 0;
+      );
+
+      loop(this_block_size,
+        offs = frame_idx * n_channels;
+        spl  = 0;
+        ch   = 0;
+        loop(n_channels,
+          val = abs(samplebuffer[offs + ch]);
+          spl = max(spl, val);
+          ch += 1;
+        );
+
+        sample_pos = starttime_sec + frame_idx / samplerate;
+
+        spl < threshold_amp ? (
+          silent_run == 0 ? (
+            reverse == 1 ? (
+              silence_end_time = sample_pos;
+            ) : (
+              silence_start_time = sample_pos;
+            );
+          ) : 0;
+
+          silent_run += 1;
+
+          silent_run >= silence_samples_needed ? (
+            reverse == 1 ? (
+              silence_start_time = silence_end_time - (silent_run / samplerate);
+            ) : (
+              silence_end_time = sample_pos;
+            );
+            center = (silence_start_time + silence_end_time) * 0.5;
+            found_center = 1;
+          ) : 0;
+        ) : (
+          silent_run = 0;
+        );
+
+        found_center == 1 ? (
+          frame_idx = this_block_size;
+        ) : (
+          reverse == 1 ? (
+            frame_idx -= 1;
+          ) : (
+            frame_idx += 1;
+          );
+        );
+      );
+
+      reverse == 1 ? (
+        starttime_sec -= this_block_size / samplerate;
+        starttime_sec < range_start ? starttime_sec = range_start : 0;
+      ) : (
+        starttime_sec += this_block_size / samplerate;
+        starttime_sec > range_end ? starttime_sec = range_end : 0;
+      );
+
+      cur_block += 1;
+    );
+
+    center;
+  );
+);
+
+// -----------------------------------------------------------------------------
+// Find punch-in time around base_pos (edit cursor after Ripple Insert End)
+// -----------------------------------------------------------------------------
+function FindPunchInTime(base_pos, track) local(
+  fallback, AA, samplerate, n_channels,
+  aa_start, aa_end,
+  forward_start, forward_end,
+  backward_start, backward_end,
+  threshold_amp, silence_samples_needed,
+  center
+)(
+  fallback = base_pos - REWIND_EXTRA;
+  fallback < 0 ? fallback = 0 : 0;
+
+  track == 0 ? (
+    fallback;
+  ) : (
+    AA = CreateTrackAudioAccessor(track);
+
+    samplerate = GetProjectSamplerate();
+    n_channels = floor(GetMediaTrackInfo_Value(track, "I_NCHAN"));
+    n_channels < 1 ? n_channels = 1 : 0;
+
+    threshold_amp         = ValFromdB(SILENCE_THRESH_DBFS);
+    silence_samples_needed = floor((MIN_SILENCE_MS * 0.001) * samplerate + 0.5);
+    silence_samples_needed < 1 ? silence_samples_needed = 1 : 0;
+
+    aa_start = GetAudioAccessorStartTime(AA);
+    aa_end   = GetAudioAccessorEndTime(AA);
+
+    forward_start = base_pos - REWIND_EXTRA;
+    forward_start < 0        ? forward_start = 0      : 0;
+    forward_start < aa_start ? forward_start = aa_start : 0;
+
+    forward_end = base_pos - (REWIND_EXTRA * 0.5);
+    forward_end > aa_end     ? forward_end = aa_end   : 0;
+    forward_end < forward_start ? forward_end = forward_start : 0;
+
+    center = ScanRangeForSilence(AA, samplerate, n_channels,
+                                 forward_start, forward_end,
+                                 0, threshold_amp, silence_samples_needed);
+
+    center < 0 ? (
+      backward_start = base_pos - (2 * REWIND_EXTRA);
+      backward_start < 0        ? backward_start = 0      : 0;
+      backward_start < aa_start ? backward_start = aa_start : 0;
+
+      backward_end = forward_start;
+      backward_end > aa_end     ? backward_end = aa_end   : 0;
+      backward_end < backward_start ? backward_end = backward_start : 0;
+
+      center = ScanRangeForSilence(AA, samplerate, n_channels,
+                                   backward_start, backward_end,
+                                   1, threshold_amp, silence_samples_needed);
+    ) : 0;
+
+    DestroyAudioAccessor(AA);
+
+    center < 0 ? fallback : center;
+  );
+);
+
+// -----------------------------------------------------------------------------
+// Delayed pre-roll restore (must be top-level in ReaScript EEL)
+// -----------------------------------------------------------------------------
+function delayedRestore() local(now)(
+  now = time_precise();
+  (now - t0) < 0.1 ? (
+    defer("delayedRestore");
+  ) : (
+    Main_OnCommand(41819, 0); // toggle pre-roll back off
+  );
+);
+
+// Deferred loop used for the extended preview ("double pre-roll")
+// In this script, after the preview we run the Ripple Insert Start action,
+// with pre-roll temporarily enabled if it was originally off.
+function SmartPR_PreviewLoop() local(playState, now)(
+  playState = GetPlayState();
+  now       = time_precise();
+
+  // If user stopped playback early, abort without starting a new ripple insert
+  (playState != 1) && (now < g_preview_end_time) ? (
+    g_preview_active = 0;
+  ) : (
+    // If we've reached or passed the preview end time, do the real punch-in
+    now >= g_preview_end_time ? (
+      // Stop playback
+      Main_OnCommand(40044, 0); // Transport: Stop
+
+      // Jump back precisely to the punch-in point
+      SetEditCurPos(g_preview_punch_pos, 0, 0);
+
+      // If pre-roll was originally off, enable it now
+      g_preview_preRollOrig == 0 ? (
+        Main_OnCommand(41819, 0); // Toggle pre-roll ON
+      );
+
+      // Run the Ripple Insert Start script (this actually starts the new take)
+      RI_START_CMD > 0 ? (
+        Main_OnCommand(RI_START_CMD, 0);
+      );
+
+      // If we turned pre-roll on, schedule it to be restored via delayedRestore()
+      g_preview_preRollOrig == 0 ? (
+        t0 = time_precise();
+        defer("delayedRestore");
+      );
+
+      g_preview_active = 0;
+    ) : (
+      defer("SmartPR_PreviewLoop()");
+    );
+  );
+);
+
+// -----------------------------------------------------------------------------
+// MAIN
+// -----------------------------------------------------------------------------
+
+#RI_guid_str = "";
+GetExtState(#RI_guid_str, PH_SECTION, PH_KEY_LAST_TRACK_GUID);
+strlen(#RI_guid_str) > 0 ? (
+  tr_hint = FindTrackByGuid();
+  tr_hint != 0 ? (
+    SelectOnlyTrack(tr_hint);
+  );
+);
+
+Undo_BeginBlock();
+
+playState = GetPlayState();
+playState > 0 ? (
+  Main_OnCommand(NamedCommandLookup("_RS6cca0e2eccfc3cbd563bf061c39b9a4e540c0382"), 0);
+  basePos = GetCursorPosition();
+  target_track = GetTargetTrack();
+  newPos = FindPunchInTime(basePos, target_track);
+  SetEditCurPos(newPos, 0, 0);
+);
+
+Main_OnCommand(40757, 0); // split at edit cursor
+splitPos = GetCursorPosition();
+
+insertEndPos = 0;
+#RI_insertEndStr = "";
+GetExtState(#RI_insertEndStr, "RippleInsert", "InsertEndCursorPos");
+strlen(#RI_insertEndStr) > 0 ? (
+  insertEndPos = parse_timestr_len(#RI_insertEndStr, 0, 0);
+);
+
+haveInsertEndPos = 1;
+insertEndPos == 0 ? (
+  ShowMessageBox("No stored Ripple Insert End position found.", "Error", 0);
+  haveInsertEndPos = 0;
+);
+
+haveInsertEndPos == 1 ? (
+
+  GetSet_LoopTimeRange(1, 0, splitPos, insertEndPos, 0);
+
+  ripple_off = GetToggleCommandState(40309);
+  ripple_one = GetToggleCommandState(40310);
+  ripple_all = GetToggleCommandState(40311);
+
+  Main_OnCommand(40311, 0); // Ripple Editing: All Tracks
+  Main_OnCommand(40201, 0); // Delete contents of time selection (ripple)
+
+  // Restore ripple edit state
+  ripple_off == 1 ? (
+    Main_OnCommand(40309, 0);
+  );
+  ripple_off != 1 && ripple_one == 1 ? (
+    Main_OnCommand(40310, 0);
+  );
+  ripple_off != 1 && ripple_one != 1 && ripple_all == 1 ? (
+    Main_OnCommand(40311, 0);
+  );
+
+  GetSet_LoopTimeRange(1, 0, 0, 0, 0); // clear time selection
+
+    // Remember original pre-roll state but do NOT change it yet
+  preRollOrig = GetToggleCommandStateEx(0, 41819);
+
+  // Set up state for the preview + punch-in
+  g_preview_punch_pos   = splitPos;       // punch-in point is where we split
+  g_preview_preRollOrig = preRollOrig;
+
+  // Cache the Ripple Insert Start command ID for use in the deferred loop
+  RI_START_CMD = NamedCommandLookup("_RS65a3b3b1e39ff25c5c9bd0d1967b3892461cff42");
+
+  // Work out where to start the preview from
+  preview_start = g_preview_punch_pos - preview_len;
+  preview_start < 0 ? preview_start = 0;
+
+  // Move cursor to preview start and begin playback
+  SetEditCurPos(preview_start, 0, 0);
+
+  g_preview_end_time = time_precise() + (g_preview_punch_pos - preview_start);
+  g_preview_active   = 1;
+
+  Main_OnCommand(1007, 0); // Transport: Play
+
+  // Hand off to the deferred preview loop; it will stop playback,
+  // jump back to g_preview_punch_pos, enable pre-roll if needed,
+  // run Ripple Insert Start, and schedule pre-roll restore.
+  defer("SmartPR_PreviewLoop()");
+);
+
+Undo_EndBlock("Smart Ripple Insert Punch and Roll (EEL, Silence-Aware)", -1);

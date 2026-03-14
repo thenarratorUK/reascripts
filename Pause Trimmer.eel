@@ -1,0 +1,276 @@
+/**
+ * ReaScript Name: Pause Trimmer
+ * Author: David Winter 
+ * REAPER: 7.0
+ * Version: 2.19
+ */
+
+ 
+ // Warning - if you choose a target pause value larger than the existing silence, things may behave strangely.
+
+usrconfig = 0; // 1 or 0: display a prompt window at script run
+
+// Defaults
+
+#start_threshold = "-35";   // dB (for "start" detection)
+#end_threshold = "-35";  // dB (for "end" detection)
+#target_pause = "2.25";             // target target_pause in s (half of this will be used as offset)
+
+#undo_text = "Pause Trimmer";
+#ext_name  = "{Pause Trimmer}";
+
+function tostring(num)(
+    sprintf(#, "%.2f", num)
+);
+
+function ValFromdB(dB_val)(
+  pow(10, dB_val/20)
+);
+
+
+function SaveState()(
+  SetExtState(#ext_name, "start_threshold", #start_threshold, 1 );
+  SetExtState(#ext_name, "end_threshold", #end_threshold, 1 );
+  SetExtState(#ext_name, "target_pause", #target_pause, 1 );
+);
+
+function GetExtState()(
+  HasExtState(#ext_name, "start_threshold" ) ? GetExtState( #start_threshold, #ext_name, "start_threshold" ) : 0;
+  HasExtState(#ext_name, "end_threshold" ) ? GetExtState( #end_threshold, #ext_name, "end_threshold" ) : 0;
+  HasExtState(#ext_name, "target_pause" ) ? GetExtState( #target_pause, #ext_name, "target_pause"  ) : 0;
+);
+
+
+// AudioAnalyze() finds where the threshold point is passed in the item. 
+// It relies on there only being one take (I think)
+
+function AudioAnalyze(item, dest_val, reverse) local(
+  t, PCM_source, samplerate, n_channels,
+  item_start, item_len, sel_start, sel_end, playrate,
+  range_start, range_len, range_end, range_len_smpls,
+  block_size, n_blocks, rest_smples, 
+  AA, starttime_sec, samplebuffer, cur_block, 
+  i, j, spl, val, sample_pos,
+  has_break, splitpoint
+)(
+    t = GetMediaItemTake(item, 0);
+    PCM_source = GetMediaItemTake_Source(t);
+    samplerate = GetMediaSourceSampleRate(PCM_source);
+    n_channels = GetMediaSourceNumChannels(PCM_source);
+
+    item_start = GetMediaItemInfo_Value(item, "D_POSITION");
+    item_len   = GetMediaItemInfo_Value(item, "D_LENGTH");
+
+    // Just in case (and because it seems to break without it) create the time selection again
+    GetSet_LoopTimeRange(0, 0, sel_start, sel_end, 0);
+    (sel_end - sel_start == 0) ? (
+       sel_start = item_start;
+       sel_end   = item_start + item_len
+    ) : 0;
+
+    // And make really really sure we've got everything starting and ending at the right point
+    sel_start < item_start ? sel_start = item_start : 0;
+    sel_end   > (item_start + item_len) ? sel_end = item_start + item_len : 0;
+    
+    (sel_end - sel_start <= 0) ? ( 0 ) : (
+      // If you edit at an increased playrate, this should make it still work. Untested!
+      playrate = GetMediaItemTakeInfo_Value(t, "D_PLAYRATE");
+      playrate != 1 ? (
+         SetMediaItemTakeInfo_Value(t, "D_PLAYRATE", 1);
+         SetMediaItemInfo_Value(item, "D_LENGTH", item_len*playrate)
+      ) : 0;
+
+      range_start     = (sel_start - item_start)*playrate;
+      range_len       = (sel_end - sel_start)*playrate;
+      range_end       = range_start + range_len;
+      range_len_smpls = floor(range_len * samplerate);
+
+  // Goes wrong with a higher block size, this appears to be what works best
+      block_size  = floor(16384 / n_channels / n_channels);
+      n_blocks    = floor(range_len_smpls / block_size);
+      rest_smples = range_len_smpls - block_size * n_blocks;
+
+      AA = CreateTakeAudioAccessor(t);
+
+      reverse == 1 ? ( starttime_sec = range_end - block_size / samplerate ) : ( starttime_sec = range_start );
+
+      samplebuffer = 0;
+      cur_block    = 0;
+      has_break    = 0;
+      splitpoint       = 0;
+
+      while(cur_block <= n_blocks && has_break == 0)(
+        // Everything isn't going to divide up neatly, so this handles the remainder
+        cur_block == n_blocks ? ( block_size = block_size + rest_smples ) : 0;
+
+        memset(0, 0, block_size * n_channels);
+        GetAudioAccessorSamples(AA, samplerate, n_channels, starttime_sec, block_size, samplebuffer);
+
+        reverse == 1 ? ( i = block_size - 1 ) : ( i = 0 );
+
+        loop(block_size,
+          spl = 0;
+          j   = 0;
+
+          loop(n_channels,
+            val = abs(samplebuffer[i+j]);
+            spl = max(val, spl);
+            j += 1
+          );
+
+          sample_pos = (starttime_sec + (i / samplerate));
+
+          // When we cross the threshold, we want to remember where it happened (and stop looking)
+          spl >= dest_val && has_break == 0 ? (
+            splitpoint = sample_pos;
+            has_break = 1
+          ) : 0;
+
+          reverse == 1 ? ( i -= n_channels ) : ( i += n_channels )
+        );
+
+        reverse == 1 ? ( starttime_sec -= (block_size / samplerate) ) : ( starttime_sec += (block_size / samplerate) );
+        cur_block += 1
+      );
+
+      DestroyAudioAccessor(AA);
+
+      // This should put your increased playrate back, but again, it's not tested!
+      playrate != 1 ? (
+        SetMediaItemTakeInfo_Value(t, "D_PLAYRATE", playrate);
+        SetMediaItemInfo_Value(item, "D_LENGTH", item_len)
+      ) : 0;
+
+      splitpoint
+    )
+);
+  
+// We need to make sure we're only working on the track we want to work on, although this whole thing
+// will probably break if there are multiple tracks anyway
+function SetOnlyTrackSelected(track) local(i, c)(
+  c = CountTracks(0);
+  i = 0;
+  loop(c,
+    SetTrackSelected(GetTrack(0,i), 0);
+    i += 1
+  );
+  (track >= 0) ? SetTrackSelected(track, 1) : 0
+);
+
+//This is where the magic is happening
+function Main() local(
+  ripple_off_state, ripple_one_state, ripple_all_state,
+  gluedItem, gluedLen, gluedPos, midPos,
+  rightItem, leftItem,
+  splitpoint, item_pos, item_end, val,
+  cutEnd, cutBegin,
+  offset 
+)(
+  // We want to keep working from the middle, so it's easier to half the pause amount
+  offset = target_pause / 2;
+
+  // 1) Capture ripple states
+  ripple_off_state = GetToggleCommandState(40309);  // "Options: Toggle ripple editing off"
+  ripple_one_state = GetToggleCommandState(40310);   // "Options: Toggle ripple editing (one track)"
+  ripple_all_state = GetToggleCommandState(40311);   // "Options: Toggle ripple editing (all tracks)"
+
+  // 2) Force ripple editing OFF before continuing
+  Main_OnCommand(40309, 0);
+
+  // 3) Split items at time selection or razor edit (40061)
+  Main_OnCommand(40061, 0);
+
+  // 4) Glue items within time selection (42432)
+  Main_OnCommand(42432, 0);
+
+  gluedItem = GetSelectedMediaItem(0, 0);
+  gluedLen  = GetMediaItemInfo_Value(gluedItem, "D_LENGTH");
+  gluedPos  = GetMediaItemInfo_Value(gluedItem, "D_POSITION");
+
+  // 5) Split at the half-way point
+  midPos    = gluedPos + (gluedLen * 0.5);
+  rightItem = SplitMediaItem(gluedItem, midPos);
+  leftItem  = gluedItem;
+
+  // 6) We find where the threshold was passed on the right, then step back by half the offset
+  splitpoint = AudioAnalyze(rightItem, start_threshold, 0);
+  item_pos   = GetMediaItemInfo_Value(rightItem, "D_POSITION");
+  item_end   = item_pos + GetMediaItemInfo_Value(rightItem, "D_LENGTH");
+  cutEnd     = splitpoint + item_pos - offset;
+
+  // 7) We find where the threshold was passed on the left, then step forward by half the offset
+  splitpoint = AudioAnalyze(leftItem, end_threshold, 1);
+  item_pos   = GetMediaItemInfo_Value(leftItem, "D_POSITION");
+  item_end   = item_pos + GetMediaItemInfo_Value(leftItem, "D_LENGTH");
+  cutBegin   = splitpoint + item_pos + offset;
+
+
+  // 8) Create a time selection between cutBegin and cutEnd
+  GetSet_LoopTimeRange(1, 0, cutBegin, cutEnd, false);
+
+  // 9) Turn Ripple Editing on for all tracks (40311)
+  Main_OnCommand(40311, 0);
+
+  // 10) Focus main arrange window (40914) - shouldn't be necessary, but occasionally goes wrong without it
+  Main_OnCommand(40914, 0); 
+
+  // 11) Time selection: Remove contents of time selection (moving later items) (40201)
+  Main_OnCommand(40201, 0);
+
+  // 12) Remove the time selection, because it's prettier
+  GetSet_LoopTimeRange(1, 0, 0, 0, false);
+
+  // 13) Restore the original ripple state
+  (ripple_off_state == 1) ? ( Main_OnCommand(40309, 0) ) : 0;
+  (ripple_one_state == 1) ? ( Main_OnCommand(40310, 0) ) : 0;
+  (ripple_all_state == 1) ? ( Main_OnCommand(40311, 0) ) : 0;
+);
+
+ // init wrapper is here
+ 
+function Init()(
+  count_sel_items = CountSelectedMediaItems(0);
+  (count_sel_items > 0) ? (
+    (usrconfig == 1) ? (
+      // User Prompts
+      GetExtState();
+      sprintf(#input, "%s,%s,%s",
+              #start_threshold, #end_threshold, #target_pause);
+      retval_input = GetUserInputs("Trim Silences", 3,
+        "Attack Threshold (dB),Release Threshold (dB),target_pause,Time Unit (s,ms,grid,frames...)",
+        #input
+      );
+      (retval_input == 1) ? (
+        match("%s,%s,%s",
+              #input, #start_threshold, #end_threshold, #target_pause);
+        match("%f,%f,%f",
+              #input, start_threshold, end_threshold, target_pause)
+      ) : 0
+    ) : (
+      // If we haven't had the usrconfig box pop up, then we still need to fall back on the defaults
+      match("%f", "-35",   start_threshold);
+      match("%f", "-35",   end_threshold);
+      match("%f", "2.25",  target_pause);
+    );
+    ((retval_input == 1) || (usrconfig == 0)) ? (
+      ClearConsole();
+      PreventUIRefresh(1);
+
+      Undo_BeginBlock();
+
+      (usrconfig == 1) ? ( SaveState() ) : 0;
+
+      start_threshold  = ValFromdB(start_threshold);
+      end_threshold = ValFromdB(end_threshold);
+
+      Main();
+
+      Undo_EndBlock(#undo_text, -1);
+      UpdateArrange();
+      PreventUIRefresh(-1)
+    ) : 0
+  ) : 0
+);
+
+// Makes it work
+preset_file_init == 0 ? ( Init() ) : 0;
