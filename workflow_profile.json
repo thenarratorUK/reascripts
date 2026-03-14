@@ -1,0 +1,70 @@
+{
+  "$schema_version": "1.0",
+  "project_type": "REAPER audiobook/dialogue post-production",
+  "track_names": {
+    "core": ["All FX", "Dialogue Bus", "Reverb Bus", "Room Tone"],
+    "cleanup": ["Breaths", "Clicks", "Renders"],
+    "notes": "Track lookup should prefer names over fixed indexes."
+  },
+  "item_color_states": [
+    {
+      "name": "default",
+      "meaning": "untreated/default state",
+      "custom_color_required": false
+    },
+    {
+      "name": "orange",
+      "meaning": "needs review / in-progress state",
+      "custom_color_required": true
+    },
+    {
+      "name": "green",
+      "meaning": "approved / selected best take",
+      "custom_color_required": true
+    },
+    {
+      "name": "red",
+      "meaning": "multitake attention flag",
+      "custom_color_required": true
+    }
+  ],
+  "markers_and_regions": {
+    "common_markers": [
+      "Proofed up to here",
+      "Click"
+    ],
+    "region_types": [
+      "chapter",
+      "line",
+      "character"
+    ],
+    "voice_reference_mode": "placeholder text maps to character/region name"
+  },
+  "workflow_pipelines": [
+    "punch_and_ripple",
+    "breath_detection_and_reduction",
+    "click_detection_and_reduction",
+    "take_selection_and_coloring",
+    "routing_and_fx_topology_management",
+    "source_build_import_export",
+    "proofing_qc_reporting"
+  ],
+  "automation_principles": [
+    "single-purpose scripts",
+    "composable custom-action friendly behavior",
+    "state-preserving edits where possible",
+    "idempotent infrastructure scripts",
+    "top-of-file user-tunable constants"
+  ],
+  "validation_checks": [
+    "named track compatibility",
+    "color-state compatibility",
+    "marker/region vocabulary compatibility",
+    "safe rerun behavior",
+    "side-effects documented"
+  ],
+  "maintenance": {
+    "paired_human_doc": "CONVENTIONS.md",
+    "update_policy": "Prefer updating JSON profile and conventions doc together."
+  }
+}
