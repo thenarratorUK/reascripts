@@ -12,6 +12,7 @@ Public REAPER scripts for audiobook, dialogue, and pickup workflows.
 - Many scripts expect REAPER 7 and the SWS/S&M extension.
 - Some scripts depend on companion scripts from this same repository or on specific folder and track conventions.
 - See `DEPENDENCIES.md` for setup notes before using the more workflow-specific actions.
+- See `SCRIPT_INDEX.md` for a quick summary of what each script does.
 
 ## Scope
 This public repo intentionally excludes some highly personal or one-off workflow scripts, while keeping the broader narration toolkit and the scripts that are useful to teach or reuse.
