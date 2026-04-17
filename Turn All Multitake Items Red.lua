@@ -1,9 +1,9 @@
 -- @description Turn All Multitake Items Red
 -- @version 1.0
--- @author David Winter (based on earlier helper script)
+-- @author David Winter
 -- Color all items (on selected tracks) that have more than one take
 -- Sets item color to pure red
--- Author: David Winter (based on earlier helper script)
+-- Author: David Winter
 
 local function color_multi_take_items_on_selected_tracks()
     local proj = 0

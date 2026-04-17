@@ -360,7 +360,7 @@ function AudioAnalyze(item, dest_val, reverse) local(
     reverse == 1 ? ( starttime_sec = range_end - block_size / samplerate )
                  : ( starttime_sec = range_start );
 
-    // ReaScript Creator wants to reallocate a sample buffer (it assumes 65,536 elements is enough)
+    // Preallocate the sample buffer used by the audio accessor read loop
     total_buffer_size = 65536;
     samplebuffer = 0;
     i = 0;

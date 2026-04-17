@@ -1,6 +1,6 @@
 -- @description Disable ReaGate
 -- @version 1.0
--- @author ReaScript Creator & David Winter
+-- @author David Winter
 
 -- Begin undo block
 reaper.Undo_BeginBlock()
