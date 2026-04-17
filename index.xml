@@ -1,0 +1,420 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<index version="1" name="thenarratorUK ReaScripts" commit="64b9b0704a096b675b8e3b181ce84e90aec39371">
+  <category name="Scripts">
+    <reapack name="ADR Script Import.lua" type="script" desc="ADR Script Import">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/ADR%20Script%20Import.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Breath Comparison.lua" type="script" desc="Breath Comparison">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Breath%20Comparison.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Breath Detection Advanced.lua" type="script" desc="Breath Detection Advanced">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Breath%20Detection%20Advanced.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Breath Detection Part 1 (Dynamic Split).lua" type="script" desc="Breath Detection Part 1 (Dynamic Split)">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Breath%20Detection%20Part%201%20%28Dynamic%20Split%29.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Breath Detection.lua" type="script" desc="Ultra-Fast Peak Detection &amp; Cleanup">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Breath%20Detection.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Breath Reduction (Lorin).lua" type="script" desc="Auto Split &amp; Adjust Pre-FX Volume for Breaths">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Breath%20Reduction%20%28Lorin%29.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Breath Reduction (Single Item).lua" type="script" desc="Breath Reduction (Single Item)">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Breath%20Reduction%20%28Single%20Item%29.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Breath Reduction.lua" type="script" desc="Auto Split &amp; Adjust Pre-FX Volume for Breaths">
+      <version name="1.3" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Breath%20Reduction.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Build Character FX Tracks and Sends.lua" type="script" desc="Build Character FX Tracks and Sends">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Build%20Character%20FX%20Tracks%20and%20Sends.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Build_and_Update_from_Sources.lua" type="script" desc="Build &amp; Update from ./Sources CSV (fully explained inline; variable placeholders; A/B routes)">
+      <version name="3.3" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Build_and_Update_from_Sources.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Bulk Import Pozotron Pickups.lua" type="script" desc="Import multiple CSV marker files, align them to their corresponding regions, set project start time, and apply marker colors">
+      <version name="3.4 (cleaned, flexible region matching)" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Bulk%20Import%20Pozotron%20Pickups.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Change_Project_Start_Time.lua" type="script" desc="Change_Project_Start_Time">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Change_Project_Start_Time.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Chapter Region Maker.eel" type="script" desc="Chapter Maker">
+      <version name="2.9" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Chapter%20Region%20Maker.eel</source>
+      </version>
+    </reapack>
+    <reapack name="Character Take Report.lua" type="script" desc="Track Item / Rejected / Active Take Summary">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Character%20Take%20Report.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Check for Empty Tracks in 15-Minute Checkpoint.lua" type="script" desc="Check for Empty Tracks in 15-Minute Checkpoint (list FX items)">
+      <version name="1.2" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Check%20for%20Empty%20Tracks%20in%2015-Minute%20Checkpoint.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Check Gaps Between Items.lua" type="script" desc="Check Gaps Between Items">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Check%20Gaps%20Between%20Items.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Check Next Breath.lua" type="script" desc="Check Next Breath">
+      <version name="1.1" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Check%20Next%20Breath.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Check Next Click.lua" type="script" desc="Check Next Click">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Check%20Next%20Click.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Check Voice Reference.lua" type="script" desc="Check Voice Reference">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Check%20Voice%20Reference.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Click Detection.lua" type="script" desc="Click Detection">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Click%20Detection.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Click Double-Checker (Click Found).lua" type="script" desc='Tails Click Check (Mark Click): drop yellow "Click" marker at previous tails marker, advance tails marker, play last 1s (+0.5s)'>
+      <version name="1.1" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Click%20Double-Checker%20%28Click%20Found%29.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Click Double-Checker.lua" type="script" desc="Tails Click Check: advance marker to item end and play last 1s (+0.5s)">
+      <version name="1.1" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Click%20Double-Checker.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Click Reduction (Mid-Dialogue).lua" type="script" desc="Click Reduction B (RX De-click Take FX)">
+      <version name="1.1" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Click%20Reduction%20%28Mid-Dialogue%29.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Click Reduction (Silence).lua" type="script" desc="Click Reduction A (Envelope)">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Click%20Reduction%20%28Silence%29.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Close Gaps in Room Tone.lua" type="script" desc="Close Gaps in Room Tone">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Close%20Gaps%20in%20Room%20Tone.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Colour Best Takes Based On Files Remaining.lua" type="script" desc="Colour Best Takes Based On Files Remaining">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Colour%20Best%20Takes%20Based%20On%20Files%20Remaining.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Convert Custom Actions to Reascript.lua" type="script" desc="BuyOne_Convert custom action to Lua ReaScript.lua">
+      <version name="1.2" author="Buy One" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Convert%20Custom%20Actions%20to%20Reascript.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Copy all Track Items to End for FX Learning.lua" type="script" desc="Append selected tracks' items sequentially after project end (excluding Room Tone)">
+      <version name="1.1" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Copy%20all%20Track%20Items%20to%20End%20for%20FX%20Learning.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Copy Automation from First Item in Solo or Child Tracks to Later Items.lua" type="script" desc="Copy Parent Automation from First Region to Later Items (Track-based, Folder-aware)">
+      <version name="1.3" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Copy%20Automation%20from%20First%20Item%20in%20Solo%20or%20Child%20Tracks%20to%20Later%20Items.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Copy Automation from First Item to All Subsequent Items In Track.lua" type="script" desc="Copy Parent Automation from Selected Child Item to All Later Items on That Child (Using 4-Point Block, Midpoint Sampling)">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Copy%20Automation%20from%20First%20Item%20to%20All%20Subsequent%20Items%20In%20Track.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Copy to All Tracks.lua" type="script" desc="Copy to All Tracks">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Copy%20to%20All%20Tracks.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Copy to Breaths, Clicks and Renders Tracks.lua" type="script" desc="Copy to Breaths, Clicks and Renders Tracks">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Copy%20to%20Breaths%2C%20Clicks%20and%20Renders%20Tracks.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Create Retail Sample Region.lua" type="script" desc="Create Retail Sample Region">
+      <version name="1.2" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Create%20Retail%20Sample%20Region.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Create Voice Reference Placeholders.lua" type="script" desc="Voice Reference Setup (Gap via Ripple + 40119), then Insert Placeholders">
+      <version name="2.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Create%20Voice%20Reference%20Placeholders.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Decrease Peak Display.lua" type="script" desc="Decrease Peak Display">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Decrease%20Peak%20Display.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Disable ReaGate.lua" type="script" desc="Disable ReaGate">
+      <version name="1.0" author="ReaScript Creator &amp; David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Disable%20ReaGate.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Duplicate Empty Item Checker.lua" type="script" desc="List duplicate item notes across project">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Duplicate%20Empty%20Item%20Checker.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Export Command IDs.lua" type="script" desc="Export Command IDs">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Export%20Command%20IDs.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Extract Best Takes from Tracks 1&amp;2 to Tracks 3&amp;4.lua" type="script" desc="Extract Best Takes from Tracks 1&amp;2 to Tracks 3&amp;4">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Extract%20Best%20Takes%20from%20Tracks%201%262%20to%20Tracks%203%264.lua</source>
+      </version>
+    </reapack>
+    <reapack name="FInd Next Multitake Item.lua" type="script" desc="FInd Next Multitake Item">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/FInd%20Next%20Multitake%20Item.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Increase Peak Display.lua" type="script" desc="Increase Peak Display">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Increase%20Peak%20Display.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Index Track GUIDs.lua" type="script" desc="Index Track GUIDs">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Index%20Track%20GUIDs.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Line Region Maker.eel" type="script" desc="Per-Item Trim + Region by Identifier (fixed EEL memory)">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Line%20Region%20Maker.eel</source>
+      </version>
+    </reapack>
+    <reapack name="List TakeFX on Track.lua" type="script" desc="List TakeFX on Track">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/List%20TakeFX%20on%20Track.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Mark Breath.lua" type="script" desc="Mark Breath (Create Check Breath region)">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Mark%20Breath.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Mic Comparison Test Prep.lua" type="script" desc="Mic Comparison Test Prep — pick 20 items (skipping colored), normalize to LUFS-I map, +3 dB compensate, flag peaks &gt;= 0 dBFS">
+      <version name="1.2" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Mic%20Comparison%20Test%20Prep.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Move from Parent to Child based on tag.lua" type="script" desc="Distribute Items To Character Subtracks Based On Notes (SWS collapse + ordered child color gradient)">
+      <version name="1.2" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Move%20from%20Parent%20to%20Child%20based%20on%20tag.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Move Items to Named Track.lua" type="script" desc="Move Items to Named Track">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Move%20Items%20to%20Named%20Track.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Multicast Ripple Punch In (Sends Version).lua" type="script" desc="Ripple Punch-In (Placeholder-Aware Toggle)">
+      <version name="1.6" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Multicast%20Ripple%20Punch%20In%20%28Sends%20Version%29.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Multicast Ripple Punch In.lua" type="script" desc="Ripple Punch-In (Placeholder-Aware Toggle)">
+      <version name="1.6" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Multicast%20Ripple%20Punch%20In.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Multicast TIghten Tail before Punch.lua" type="script" desc="Multicast TIghten Tail before Punch">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Multicast%20TIghten%20Tail%20before%20Punch.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Nudge Peak Volume Down with Automation.lua" type="script" desc="Pre-FX Peak Dip Automation (Follow Exact Action Steps).lua">
+      <version name="3.2" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Nudge%20Peak%20Volume%20Down%20with%20Automation.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Pause End.lua" type="script" desc='Split item at start &amp; end of time selection, then every 1ms, analyze peaks, save cursor position as "Pause_End", add a split, create a time selection between Pause_Start and Pause_End, enable Ripple Editing (All Tracks), remove contents of the time selection, restore the previous Ripple Editing state, and forget stored Pause_Start and Pause_End locations'>
+      <version name="1.9" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Pause%20End.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Pause Start.lua" type="script" desc='Split item at start &amp; end of time selection, then every 1ms, analyze peaks, move cursor 2.25s right, undo splits, save cursor position as "Pause_Start", and add a split'>
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Pause%20Start.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Pause Trimmer.eel" type="script" desc="Pause Trimmer">
+      <version name="2.19" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Pause%20Trimmer.eel</source>
+      </version>
+    </reapack>
+    <reapack name="Pay Calculator.lua" type="script" desc="Pay Calculator">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Pay%20Calculator.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Play-Pause when Proofing.lua" type="script" desc='Play/Pause; if pausing while playing, move "Proofed up to here" marker to play cursor'>
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Play-Pause%20when%20Proofing.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Re-Import Rendered Files.lua" type="script" desc="Re-Import Rendered Files">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Re-Import%20Rendered%20Files.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Re-Order Audition Takes.lua" type="script" desc="Reorder Adjacent Items (4 or 6) + Ripple-Remove + Automation + Region (+ Region Render Matrix tick)">
+      <version name="1.4" author="David Winter (requested)" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Re-Order%20Audition%20Takes.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Reduce Reagate Threshold.lua" type="script" desc="ReaGate Threshold: 4-point dip via actions (+ slow start/end on points 1 and 3)">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Reduce%20Reagate%20Threshold.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Regions from Additional Cast Items.lua" type="script" desc="Regions from Additional Cast Items">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Regions%20from%20Additional%20Cast%20Items.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Regions from SubProjects.lua" type="script" desc="Regions from SubProjects">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Regions%20from%20SubProjects.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Rename Track to Breaths.lua" type="script" desc="Rename Track to Breaths">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Rename%20Track%20to%20Breaths.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Reset Character FX Tracks and Sends.lua" type="script" desc="Reset Character FX Tracks and Sends">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Reset%20Character%20FX%20Tracks%20and%20Sends.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Reset Peak Display to 0.lua" type="script" desc="Reset Peak Display to 0">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Reset%20Peak%20Display%20to%200.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Ripple Insert End.lua" type="script" desc="Ripple Insert End">
+      <version name="3.2" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Ripple%20Insert%20End.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Ripple Insert Start.lua" type="script" desc="Ripple Insert Start">
+      <version name="1.6" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Ripple%20Insert%20Start.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Ripple Punch-In.lua" type="script" desc="Ripple Punch-In">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Ripple%20Punch-In.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Serialise FX Chains.lua" type="script" desc="Split AllFX and Dialogue Bus into one-plugin-per-track chains">
+      <version name="1.1" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Serialise%20FX%20Chains.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Simultaneous Speaker FX Baking.lua" type="script" desc="DW_Bake All FX To Selected Items (Take FX) Then Glue Individually">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Simultaneous%20Speaker%20FX%20Baking.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Smart Punch and Roll.eel" type="script" desc="Unified Smart Punch-and-Roll (EEL2; working silence scan buffer; forward/back windows; zero-cross refine; temp prerollmeas)">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Smart%20Punch%20and%20Roll.eel</source>
+      </version>
+    </reapack>
+    <reapack name="Smart Ripple Insert Punch and Roll.eel" type="script" desc="Smart Ripple Insert Punch and Roll">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Smart%20Ripple%20Insert%20Punch%20and%20Roll.eel</source>
+      </version>
+    </reapack>
+    <reapack name="Split Interview Audio.lua" type="script" desc="Mutually exclusive comp: mute Track 1 wherever Track 2 has items">
+      <version name="1.1" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Split%20Interview%20Audio.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Start or Recheck Breath.lua" type="script" desc="Start or Recheck Breath">
+      <version name="1.2" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Start%20or%20Recheck%20Breath.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Start or Recheck Click.lua" type="script" desc="Start or Recheck Click">
+      <version name="1.1" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Start%20or%20Recheck%20Click.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Subregions from Subprojects (Headless).lua" type="script" desc="Subregions from Subprojects (Headless)">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Subregions%20from%20Subprojects%20%28Headless%29.lua</source>
+      </version>
+    </reapack>
+    <reapack name="SubRegions from SubProjects.lua" type="script" desc="SubRegions from SubProjects">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/SubRegions%20from%20SubProjects.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Toggle Item Colours.lua" type="script" desc="Toggle Custom Colors for Selected Items (None, Orange, Green)">
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Toggle%20Item%20Colours.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Toggle Live Mute.lua" type="script" desc='Toggle Mute for Tracks Named "Live"'>
+      <version name="1.0" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Toggle%20Live%20Mute.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Toggle Pre-Roll and Inverse FX.lua" type="script" desc='Toggle Pre-roll and Handle FX on Track 1 and Any Track Named "Live"'>
+      <version name="1.7" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Toggle%20Pre-Roll%20and%20Inverse%20FX.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Trim Pause.eel" type="script" desc="Trim Pause">
+      <version name="1.0" author="ReaScript Creator &amp; David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Trim%20Pause.eel</source>
+      </version>
+    </reapack>
+    <reapack name="Turn All Multitake Items Red.lua" type="script" desc="Turn All Multitake Items Red">
+      <version name="1.0" author="David Winter (based on earlier helper script)" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Turn%20All%20Multitake%20Items%20Red.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Validate Items on Correct Tracks.lua" type="script" desc="Validate and optionally fix bracket name vs track assignment">
+      <version name="1.1" author="David Winter" time="2026-04-17T19:16:11Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/64b9b0704a096b675b8e3b181ce84e90aec39371/Validate%20Items%20on%20Correct%20Tracks.lua</source>
+      </version>
+    </reapack>
+  </category>
+</index>
