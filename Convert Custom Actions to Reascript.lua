@@ -166,7 +166,7 @@ local targ_file = 'reaper-kb.ini'
   end
 
 
-  if code:match('%s(32062)%s\"'..comm_id..'') then r.MB('This is an Inline MIDI Editor custom action.\n\n  These are unfortunately not supported.\n\n                          ¯\\_(ツ)_/¯','ERROR',0) return end
+  if code:match('%s(32062)%s\"'..comm_id..'') then r.MB('This is an Inline MIDI Editor custom action.\n\n  These are unfortunately not supported.','ERROR',0) return end
 
 
 -- Concatenate the path
@@ -309,7 +309,6 @@ local mess, head, mode = table.unpack(result and {'       File has been created 
 local resp = r.MB(mess,head,mode)
 
   if resp == 6 then r.CF_ShellExecute(f_path) end
-
 
 
 

@@ -3,7 +3,7 @@
 -- @author David Winter
 --[[
 ReaScript Name  : Pre-FX Peak Dip Automation (Follow Exact Action Steps).lua
-Author          : (for David Winter)
+Author          : David Winter
 Version         : 3.2
 
 Adds one extra step at the end:

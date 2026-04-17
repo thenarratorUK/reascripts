@@ -117,10 +117,10 @@ local function extract_speaker_and_dialogue(text)
 end
 
 local function add_placeholder(track, pos, len, label)
-  local item = reaper.AddMediaItemToTrack(track) -- creates a new media item  [oai_citation:7‡Reaper](https://www.reaper.fm/sdk/reascript/reascripthelp.html) (no citation in code)
+  local item = reaper.AddMediaItemToTrack(track)
   reaper.SetMediaItemInfo_Value(item, "D_POSITION", pos)
   reaper.SetMediaItemInfo_Value(item, "D_LENGTH",   len)
-  reaper.GetSetMediaItemInfo_String(item, "P_NOTES", label, true) -- item note text  [oai_citation:8‡Reaper](https://www.reaper.fm/sdk/reascript/reascripthelp.html)
+  reaper.GetSetMediaItemInfo_String(item, "P_NOTES", label, true)
   return item
 end
 

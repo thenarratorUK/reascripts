@@ -21,7 +21,7 @@ Description:
 
 local TARGET_PEAK = -57  -- Target peak level in dB
 
--- ✅ Function to find a track by name (case-insensitive matching)
+-- Function to find a track by name (case-insensitive matching)
 local function find_track_by_name(allowed_names)
     local num_tracks = reaper.CountTracks(0)
     for i = 0, num_tracks - 1 do
@@ -37,7 +37,7 @@ local function find_track_by_name(allowed_names)
     return nil
 end
 
--- ✅ Locate the required tracks
+-- Locate the required tracks
 local breath_track              = find_track_by_name({"breath", "breaths"})
 local default_recording_track   = find_track_by_name({"recording", "david", "recordings", "narration"})
 
@@ -86,7 +86,7 @@ local function find_target_track_for_breath(start_time, end_time, breaths_track)
     return default_recording_track
 end
 
--- ✅ Deselect everything to avoid context issues
+-- Deselect everything to avoid context issues
 reaper.Main_OnCommand(40289, 0)  -- Unselect all items
 
 -- helper: dB <-> linear (kept in case needed later)
@@ -125,29 +125,29 @@ local function setPointProps(env, idx, shape, selected)
     end
 end
 
--- ✅ Process all breath items
+-- Process all breath items
 local num_breath_items = reaper.CountTrackMediaItems(breath_track)
 
 for i = 0, num_breath_items - 1 do
     local breath_item = reaper.GetTrackMediaItem(breath_track, i)
     if not breath_item then break end
 
-    -- ✅ Get breath item position and length
+    -- Get breath item position and length
     local start_time = reaper.GetMediaItemInfo_Value(breath_item, "D_POSITION")
     local end_time   = start_time + reaper.GetMediaItemInfo_Value(breath_item, "D_LENGTH")
 
-    -- ✅ Find the target audio track at this time and split it at the start of the breath
+    -- Find the target audio track at this time and split it at the start of the breath
     local target_track = find_target_track_for_breath(start_time, end_time, breath_track)
     if target_track then
     reaper.SetOnlyTrackSelected(target_track)
     reaper.SetEditCurPos(start_time, false, false)
     reaper.Main_OnCommand(40757, 0) -- Split item at cursor
 
-    -- ✅ Move cursor to breath end and split again
+    -- Move cursor to breath end and split again
     reaper.SetEditCurPos(end_time, false, false)
     reaper.Main_OnCommand(43178, 0)  -- Select item left of cursor (the breath-matching split)
 
-    -- ✅ Grab the selected recording item
+    -- Grab the selected recording item
     local sel_item = reaper.GetSelectedMediaItem(0, 0)
     if sel_item then
         local item_start = reaper.GetMediaItemInfo_Value(sel_item, "D_POSITION")
@@ -156,7 +156,7 @@ for i = 0, num_breath_items - 1 do
 
         reaper.GetSet_LoopTimeRange(true, false, item_start, item_end, false)
 
-        -- ✅ Activate the Volume (Pre-FX) Envelope on the selected track
+        -- Activate the Volume (Pre-FX) envelope on the selected track
         reaper.Main_OnCommand(41865, 0) -- Show/Select pre-FX volume envelope
 
         local env = reaper.GetSelectedEnvelope(0)
@@ -208,14 +208,14 @@ for i = 0, num_breath_items - 1 do
             reaper.Envelope_SortPoints(env)
         end
 
-        -- ✅ Measure the peak of the recording segment
+        -- Measure the peak of the recording segment
         local peak_db = reaper.NF_GetMediaItemMaxPeak(sel_item)
 
         if peak_db > TARGET_PEAK then
             local needed = peak_db - TARGET_PEAK  -- how many dB reduction needed
             local rounded = math.floor(needed + 0.5)
 
-            -- ✅ Apply the volume nudge once per dB of reduction needed
+            -- Apply the volume nudge once per dB of reduction needed
             for n = 1, math.abs(rounded) do
                 reaper.Main_OnCommand(41181, 0) -- Nudge envelope down a little bit
             end
@@ -223,7 +223,7 @@ for i = 0, num_breath_items - 1 do
     end
     end
 
-    -- ✅ Clear selection before moving to the next item
+    -- Clear selection before moving to the next item
     reaper.Main_OnCommand(40289, 0)  -- Unselect all items
 end
 
