@@ -1,3 +1,6 @@
+-- @description Reset Character FX Tracks and Sends
+-- @version 1.0
+-- @author David Winter
 -- Global Reset of Send Mute Envelopes for Character Routing
 --
 -- Behaviour:

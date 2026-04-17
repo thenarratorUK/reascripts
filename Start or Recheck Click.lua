@@ -1,3 +1,6 @@
+-- @description Start or Recheck Click
+-- @version 1.1
+-- @author David Winter
 --[[
 ReaScript Name: Start or Recheck Click
 Author: David Winter

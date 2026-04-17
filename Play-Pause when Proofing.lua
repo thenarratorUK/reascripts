@@ -1,6 +1,6 @@
 -- @description Play/Pause; if pausing while playing, move "Proofed up to here" marker to play cursor
 -- @version 1.0
--- @author David
+-- @author David Winter
 -- @about
 --   If stopped/paused: toggles Play/Pause (command 40073).
 --   If playing: toggles Play/Pause, deletes any markers named "Proofed up to here",

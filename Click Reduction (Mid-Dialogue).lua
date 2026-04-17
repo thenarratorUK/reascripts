@@ -1,3 +1,6 @@
+-- @description Click Reduction B (RX De-click Take FX)
+-- @version 1.1
+-- @author David Winter
 --[[
 ReaScript Name: Click Reduction B (RX De-click Take FX)
 Author: David Winter

@@ -1,3 +1,6 @@
+-- @description Copy Parent Automation from First Region to Later Items (Track-based, Folder-aware)
+-- @version 1.3
+-- @author David Winter
 --[[
 ReaScript Name: Copy Parent Automation from First Region to Later Items (Track-based, Folder-aware)
 Author: David Winter

@@ -1,3 +1,6 @@
+-- @description Click Detection
+-- @version 1.0
+-- @author David Winter
 --[[
   Threshold Split + RMS Cull + Overlap Cull + Colour + Cleanup (Clicks/Renders)
   + Apply Track/Take FX to Clicks items (mono) via action 40361

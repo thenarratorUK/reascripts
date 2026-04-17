@@ -1,3 +1,6 @@
+-- @description Mark Breath (Create Check Breath region)
+-- @version 1.0
+-- @author David Winter
 --[[
 ReaScript Name: Mark Breath (Create Check Breath region)
 Author: David Winter

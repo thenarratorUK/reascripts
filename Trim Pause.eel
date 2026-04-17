@@ -1,0 +1,5 @@
+// @description Trim Pause
+// @version 1.0
+-- @author ReaScript Creator & David Winter
+
+Main_OnCommand(40315, 0);

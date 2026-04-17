@@ -1,3 +1,6 @@
+-- @description Start or Recheck Breath
+-- @version 1.2
+-- @author David Winter
 --[[
   Start or Recheck Breath Script for REAPER
   Author: David Winter

@@ -1,3 +1,6 @@
+-- @description Pre-FX Peak Dip Automation (Follow Exact Action Steps).lua
+-- @version 3.2
+-- @author David Winter
 --[[
 ReaScript Name  : Pre-FX Peak Dip Automation (Follow Exact Action Steps).lua
 Author          : (for David Winter)

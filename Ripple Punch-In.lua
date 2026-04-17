@@ -1,3 +1,6 @@
+-- @description Ripple Punch-In
+-- @version 1.0
+-- @author David Winter
 -- Smart Ripple Insert Toggle
 -- Replaces a cycle action for starting/stopping ripple inserts
 -- Author: David Winter

@@ -1,3 +1,6 @@
+-- @description Reorder Adjacent Items (4 or 6) + Ripple-Remove + Automation + Region (+ Region Render Matrix tick)
+-- @version 1.4
+-- @author David Winter (requested)
 --[[
 ReaScript Name : Reorder Adjacent Items (4 or 6) + Ripple-Remove + Automation + Region (+ Region Render Matrix tick)
 Author         : David Winter (requested)

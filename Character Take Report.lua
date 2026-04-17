@@ -1,6 +1,9 @@
+-- @description Track Item / Rejected / Active Take Summary
+-- @version 1.0
+-- @author David Winter
 --[[
 ReaScript Name: Track Item / Rejected / Active Take Summary
-Author: David Winter (generated with ChatGPT)
+Author: David Winter
 Version: 1.0
 
 What it does (per track):

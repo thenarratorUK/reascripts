@@ -1,3 +1,6 @@
+-- @description List TakeFX on Track
+-- @version 1.0
+-- @author David Winter
 --[[
   List Take FX on Items of Selected Track (Alphabetical, With Counts)
 

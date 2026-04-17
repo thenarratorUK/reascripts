@@ -1,3 +1,6 @@
+-- @description Regions from Additional Cast Items
+-- @version 1.0
+-- @author David Winter
  -- Create parent-named blue regions for child tracks whose grandparent is "Additional Cast"
  -- Merges adjacent/overlapping items on the same track into a single region.
  

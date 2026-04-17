@@ -1,3 +1,6 @@
+-- @description Ripple Punch-In (Placeholder-Aware Toggle)
+-- @version 1.6
+-- @author David Winter
 --[[
   ReaScript Name : Ripple Punch-In (Placeholder-Aware Toggle)
   Author         : David Winter

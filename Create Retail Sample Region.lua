@@ -1,3 +1,6 @@
+-- @description Create Retail Sample Region
+-- @version 1.2
+-- @author David Winter
 --[[
   Auto-Create Retail Sample Region (by time match)
   Author: David Winter

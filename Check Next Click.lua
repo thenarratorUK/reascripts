@@ -1,3 +1,6 @@
+-- @description Check Next Click
+-- @version 1.0
+-- @author David Winter
 --[[
 ReaScript Name: Check Next Click
 Author: David Winter

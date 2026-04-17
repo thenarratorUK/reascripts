@@ -1,3 +1,6 @@
+-- @description Turn All Multitake Items Red
+-- @version 1.0
+-- @author David Winter (based on earlier helper script)
 -- Color all items (on selected tracks) that have more than one take
 -- Sets item color to pure red
 -- Author: David Winter (based on earlier helper script)

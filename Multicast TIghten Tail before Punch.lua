@@ -1,3 +1,6 @@
+-- @description Multicast TIghten Tail before Punch
+-- @version 1.0
+-- @author David Winter
 -- Multicast Tighten Tail before Punch
 -- Tightens the tail of the previous spoken item before a punch,
 -- removing excess silence but leaving a small safety margin.

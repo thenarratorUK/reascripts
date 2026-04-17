@@ -1,3 +1,4 @@
+-- @author David Winter
 -- @description Voice Reference Setup (Gap via Ripple + 40119), then Insert Placeholders
 -- @version 2.0
 

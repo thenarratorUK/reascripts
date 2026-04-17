@@ -1,3 +1,6 @@
+-- @description Distribute Items To Character Subtracks Based On Notes (SWS collapse + ordered child color gradient)
+-- @version 1.2
+-- @author David Winter
 --[[
 ReaScript Name: Distribute Items To Character Subtracks Based On Notes (SWS collapse + ordered child color gradient)
 Author: David Winter

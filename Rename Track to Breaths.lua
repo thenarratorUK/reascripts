@@ -1,3 +1,6 @@
+-- @description Rename Track to Breaths
+-- @version 1.0
+-- @author David Winter
 function Rename_Track_To_Breaths()
   local track = reaper.GetSelectedTrack(0, 0)
   if not track then return end

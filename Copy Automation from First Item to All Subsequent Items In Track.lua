@@ -1,3 +1,6 @@
+-- @description Copy Parent Automation from Selected Child Item to All Later Items on That Child (Using 4-Point Block, Midpoint Sampling)
+-- @version 1.0
+-- @author David Winter
 --[[
 ReaScript Name: Copy Parent Automation from Selected Child Item to All Later Items on That Child (Using 4-Point Block, Midpoint Sampling)
 Author: David Winter

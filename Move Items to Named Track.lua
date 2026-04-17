@@ -1,3 +1,6 @@
+-- @description Move Items to Named Track
+-- @version 1.0
+-- @author David Winter
 --[[
   Move selected items to a track by typed name (exact match, case-insensitive).
   - Remembers last-used destination name via ExtState.

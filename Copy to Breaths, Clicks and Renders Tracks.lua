@@ -1,3 +1,6 @@
+-- @description Copy to Breaths, Clicks and Renders Tracks
+-- @version 1.0
+-- @author David Winter
 --[[
   DW_Copy Track Items to Breaths/Clicks/Renders + Delete Source Track
 

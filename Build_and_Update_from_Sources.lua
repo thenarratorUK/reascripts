@@ -1,6 +1,9 @@
+-- @description Build & Update from ./Sources CSV (fully explained inline; variable placeholders; A/B routes)
+-- @version 3.3
+-- @author David Winter
 --[[
 ReaScript Name  : Build & Update from ./Sources CSV (fully explained inline; variable placeholders; A/B routes)
-Author          : for David Winter
+Author          : David Winter
 Version         : 3.3 (2025-11-16)
 
 High-level behaviour: 

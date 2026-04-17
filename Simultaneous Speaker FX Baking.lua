@@ -1,6 +1,6 @@
 -- @description DW_Bake All FX To Selected Items (Take FX) Then Glue Individually
 -- @version 1.0
--- @author DW
+-- @author David Winter
 
 -- =========================
 -- USER SETTINGS

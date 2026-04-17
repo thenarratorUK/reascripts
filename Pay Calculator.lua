@@ -1,3 +1,6 @@
+-- @description Pay Calculator
+-- @version 1.0
+-- @author David Winter
 --[[
 Ridiculously Complicated Pay Calculator from Selected Tracks
 
@@ -14,7 +17,7 @@ For all currently selected tracks:
   - Compute pay based on Word, Line and PFH rates
   - Print everything in the console
 
-Author: David Winter (with ChatGPT)
+Author: David Winter
 Language: Lua (ReaScript)
 ]]--
 

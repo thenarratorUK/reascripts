@@ -1,3 +1,6 @@
+-- @description Auto Split & Adjust Pre-FX Volume for Breaths
+-- @version 1.3
+-- @author David Winter
 --[[
 ReaScript Name: Auto Split & Adjust Pre-FX Volume for Breaths
 Author: David Winter

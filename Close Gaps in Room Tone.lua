@@ -1,3 +1,6 @@
+-- @description Close Gaps in Room Tone
+-- @version 1.0
+-- @author David Winter
 --[[
   Close Gaps in Room Tone Track
 

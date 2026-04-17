@@ -1,98 +1,155 @@
-// Smart Punch and Roll Recording Script (Silence-Aware, EEL)
-//
-// Behaviour:
-// If transport is stopped:
-//   - Check pre-roll state.
-//   - If pre-roll was off, turn it on.
-//   - Start recording from the current edit cursor.
-//   - Immediately restore pre-roll state to original.
-//
-// If transport is active (playing or recording):
-//   - Capture current play position as the reference time.
-//   - Stop transport.
-//   - Check pre-roll state.
-//   - If pre-roll was off, turn it on.
-//   - Find a punch-in time near (play_position - REWIND_EXTRA) by scanning
-//     for a silence gap on the target track:
-//       * First search forwards from (base - REWIND_EXTRA) to (base - REWIND_EXTRA/2).
-//       * If none found, search backwards from (base - REWIND_EXTRA) to (base - 2*REWIND_EXTRA).
-//       * A gap is MIN_SILENCE_MS of continuous samples below SILENCE_THRESH_DBFS.
-//       * Punch-in is placed at the centre of the first such gap.
-//       * If no gap is found, fall back to (base - REWIND_EXTRA), clamped to 0.
-//   - Move the edit cursor to the chosen punch-in time.
-//   - Start recording (with pre-roll if enabled).
-//   - Immediately restore pre-roll state to original.
+// @description Unified Smart Punch-and-Roll (EEL2; working silence scan buffer; forward/back windows; zero-cross refine; temp prerollmeas)
+// @author David Winter
+// @version 1.0
 
-REWIND_EXTRA        = 3.0;   // seconds to rewind from the *play* position
-SILENCE_THRESH_DBFS = -55;   // dBFS threshold for "silence" (adjust to taste)
-MIN_SILENCE_MS      = 50;    // minimum continuous silence length to count as a gap
+PROJ = 0;
 
-preview_len = 3.0; // seconds of extra preview playback before punch-in
+// ---- User config ----
+REWIND_EXTRA        = 3.0;     // seconds to rewind for initial candidate point
+FWD_MULT           = 0.5;     // forward silence scan window = REWIND_EXTRA * FWD_MULT
+BACK_MULT          = 2.0;     // backward silence scan window = REWIND_EXTRA * BACK_MULT
 
-g_preview_punch_pos   = 0;
-g_preview_preRollOrig = 0;
-g_preview_end_time    = 0;
-g_preview_active      = 0;
+TARGET_THRESH_DBFS  = -55.0;   // dBFS threshold for "silence"
+MIN_SILENCE_MS      = 100.0;   // contiguous ms below threshold
+ZERO_WIN_MS         = 25.0;    // +/- ms window for zero-cross search
 
-// Convert dBFS to linear amplitude
-function ValFromdB(dB_val)(
-  pow(10, dB_val/20);
-);
+PREROLL_MEAS_TEMP   = 2.5;     // measures (prerollmeas), not seconds
+RESTORE_DELAY_S     = 0.25;    // seconds after record start to restore prerollmeas + preroll state
 
-// Get a reasonable project samplerate (falls back to 44100 if unset)
-function GetProjectSamplerate() local(sr)(
-  sr = GetSetProjectInfo(0, "PROJECT_SRATE", 0, 0);
-  sr <= 0 ? sr = 44100 : 0;
+// ---- Commands ----
+CMD_TOGGLE_PREROLL  = 41819;   // Options: Toggle pre-roll
+CMD_RECORD          = 1013;    // Transport: Record
+CMD_STOP            = 1016;    // Transport: Stop
+
+// ---- Globals for deferred restore ----
+g_restore_t0        = 0;
+g_saved_prerollmeas = 0;
+g_preRollOrig       = 0;
+
+// -----------------------------------------------------------------------------
+// Helpers
+// -----------------------------------------------------------------------------
+function clamp0(x) ( x < 0 ? 0 : x; );
+
+function db_to_amp(db) ( pow(10, db/20); );
+
+function get_project_srate() local(sr)(
+  sr = GetSetProjectInfo(PROJ, "PROJECT_SRATE", 0, 0);
+  sr <= 0 ? sr = 48000;
   sr;
 );
 
-// Prefer first selected track, otherwise first armed track
-function GetTargetTrack() local(selCount, trackCount, tr, i, tmp)(
-  tr = 0;
-  selCount = CountSelectedTracks(0);
-  selCount > 0 ? (
-    tr = GetSelectedTrack(0, 0);
-  ) : (
-    trackCount = CountTracks(0);
-    i = 0;
-    loop(trackCount,
-      tmp = GetTrack(0, i);
-      (GetMediaTrackInfo_Value(tmp, "I_RECARM") == 1 && tr == 0) ? tr = tmp : 0;
-      i += 1;
-    );
-  );
-  tr;
+function is_recording() local(ps)(
+  ps = GetPlayState();
+  (ps & 4) ? 1 : 0;
 );
 
-// Scan a time range on a track audio accessor for the first silence gap.
-// reverse = 0: scan forwards in time
-// reverse = 1: scan backwards in time
-// Returns centre time of first qualifying gap, or -1 if none found.
+function get_reference_time() (
+  is_recording() ? GetPlayPosition() : GetCursorPosition();
+);
+
+function get_preroll_enabled() local(st)(
+  st = GetToggleCommandStateEx(PROJ, CMD_TOGGLE_PREROLL);
+  st == 1 ? 1 : 0;
+);
+
+function ensure_preroll_on(orig)(
+  orig == 0 ? Main_OnCommand(CMD_TOGGLE_PREROLL, 0);
+);
+
+function restore_preroll_state(orig)(
+  orig == 0 ? Main_OnCommand(CMD_TOGGLE_PREROLL, 0);
+);
+
+function get_target_track() local(tr, n, i, t, arm)(
+  tr = GetSelectedTrack(PROJ, 0);
+  tr ? tr :
+  (
+    n = CountTracks(PROJ);
+    i = 0;
+    loop(n,
+      t = GetTrack(PROJ, i);
+      arm = GetMediaTrackInfo_Value(t, "I_RECARM");
+      arm == 1 ? (tr = t; i = n;);
+      i += 1;
+    );
+    tr;
+  );
+);
+
+function select_only_track(tr)(
+  tr ? (
+    Main_OnCommand(40297, 0); // Track: Unselect all tracks
+    SetTrackSelected(tr, 1);
+  );
+);
+
+function set_cursor(t)(
+  SetEditCurPos(t, 1, 0);
+);
+
+function find_item_covering_time_on_track(tr, t) local(itemCount, i, it, pos, len, itEnd)(
+  find_item_covering_time_on_track = 0;
+  itemCount = CountTrackMediaItems(tr);
+  i = 0;
+  loop(itemCount,
+    it = GetTrackMediaItem(tr, i);
+    pos = GetMediaItemInfo_Value(it, "D_POSITION");
+    len = GetMediaItemInfo_Value(it, "D_LENGTH");
+    itEnd = pos + len;
+    (t >= pos && t < itEnd) ? (find_item_covering_time_on_track = it; i = itemCount;);
+    i += 1;
+  );
+);
+
+function find_next_item_start_at_or_after(tr, t) local(itemCount, i, it, pos, best)(
+  itemCount = CountTrackMediaItems(tr);
+  best = -1;
+  i = 0;
+  loop(itemCount,
+    it = GetTrackMediaItem(tr, i);
+    pos = GetMediaItemInfo_Value(it, "D_POSITION");
+    pos >= t ? (
+      (best < 0 || pos < best) ? best = pos;
+    );
+    i += 1;
+  );
+  best;
+);
+
+// -----------------------------------------------------------------------------
+// Core: scan a range for the first silence gap (WORKING BUFFER METHOD)
+//
+// reverse = 0: forward in time
+// reverse = 1: backward in time
+// Returns: center time (seconds) or -1 if not found
+// -----------------------------------------------------------------------------
 function ScanRangeForSilence(AA, samplerate, n_channels,
                              range_start, range_end, reverse,
                              threshold_amp, silence_samples_needed)
 local(range_len, range_len_smpls,
-      block_size, n_blocks, rest_smples,
-      total_buffer_size, samplebuffer,
-      starttime_sec, cur_block,
-      frame_idx, offs,
-      spl, val, ch, sample_pos,
-      silent_samples_run, silence_start_time, silence_end_time,
-      found_center, center, i)(
+     block_size, n_blocks, rest_smples,
+     total_buffer_size, samplebuffer,
+     starttime_sec, cur_block,
+     frame_idx, offs,
+     spl, val, ch, sample_pos,
+     silent_run, silence_start_time, silence_end_time,
+     found_center, center, i, this_block_size)(
   center = -1;
+
   range_len = range_end - range_start;
   range_len <= 0 ? (
     center;
   ) : (
     range_len_smpls = floor(range_len * samplerate);
 
-    // Similar sizing logic as in Pause Trimmer
-    block_size = floor(16384 / n_channels / n_channels);
+    block_size = floor(16384 / (n_channels * max(1, n_channels)));
     block_size <= 0 ? block_size = 256 : 0;
 
-    n_blocks    = floor(range_len_smpls / block_size);
-    rest_smples = range_len_smpls - block_size * n_blocks;
+    n_blocks    = range_len_smpls / block_size;
+    rest_smples = range_len_smpls - (n_blocks * block_size);
 
+    // Numeric buffer in EEL local memory
     total_buffer_size = 65536;
     samplebuffer = 0;
     i = 0;
@@ -102,37 +159,40 @@ local(range_len, range_len_smpls,
     );
 
     reverse == 1 ? (
-      starttime_sec = range_end - block_size / samplerate;
+      starttime_sec = range_end - (block_size / samplerate);
+      starttime_sec < range_start ? starttime_sec = range_start : 0;
     ) : (
       starttime_sec = range_start;
     );
 
-    cur_block = 0;
-    found_center = 0;
-    silent_samples_run = 0;
+    cur_block      = 0;
+    found_center   = 0;
+    silent_run     = 0;
     silence_start_time = 0;
     silence_end_time   = 0;
 
     while(cur_block <= n_blocks && found_center == 0)(
-      // Handle final partial block
-      cur_block == n_blocks ? ( block_size = block_size + rest_smples ) : 0;
+      this_block_size = block_size;
+      cur_block == n_blocks ? (
+        this_block_size += rest_smples;
+      ) : 0;
 
       i = 0;
-      loop(block_size * n_channels,
+      loop(this_block_size * n_channels,
         samplebuffer[i] = 0;
         i += 1;
       );
 
-      GetAudioAccessorSamples(AA, samplerate, n_channels, starttime_sec, block_size, samplebuffer);
+      GetAudioAccessorSamples(AA, samplerate, n_channels,
+                              starttime_sec, this_block_size, samplebuffer);
 
       reverse == 1 ? (
-        frame_idx = block_size - 1;
+        frame_idx = this_block_size - 1;
       ) : (
         frame_idx = 0;
       );
 
-      loop(block_size,
-        // Compute max abs sample across channels for this frame (one sample per channel)
+      loop(this_block_size,
         offs = frame_idx * n_channels;
         spl  = 0;
         ch   = 0;
@@ -144,10 +204,8 @@ local(range_len, range_len_smpls,
 
         sample_pos = starttime_sec + frame_idx / samplerate;
 
-        // Silent sample?
         spl < threshold_amp ? (
-          silent_samples_run == 0 ? (
-            // Mark boundary based on scan direction
+          silent_run == 0 ? (
             reverse == 1 ? (
               silence_end_time = sample_pos;
             ) : (
@@ -155,41 +213,40 @@ local(range_len, range_len_smpls,
             );
           ) : 0;
 
-          silent_samples_run += 1;
+          silent_run += 1;
 
-          silent_samples_run >= silence_samples_needed ? (
+          silent_run >= silence_samples_needed ? (
             reverse == 1 ? (
-              // We have been moving backwards in time.
-              silence_start_time = silence_end_time - (silent_samples_run / samplerate);
+              silence_start_time = silence_end_time - (silent_run / samplerate);
             ) : (
-              // We have been moving forwards in time.
               silence_end_time = sample_pos;
             );
             center = (silence_start_time + silence_end_time) * 0.5;
             found_center = 1;
           ) : 0;
         ) : (
-          // Non-silent: reset run
-          silent_samples_run = 0;
-        );
-
-        reverse == 1 ? (
-          frame_idx -= 1;
-        ) : (
-          frame_idx += 1;
+          silent_run = 0;
         );
 
         found_center == 1 ? (
-          // Break inner loop
-          frame_idx = block_size;
-        ) : 0;
+          frame_idx = this_block_size;
+        ) : (
+          reverse == 1 ? (
+            frame_idx -= 1;
+          ) : (
+            frame_idx += 1;
+          );
+        );
       );
 
       reverse == 1 ? (
-        starttime_sec -= (block_size / samplerate);
+        starttime_sec -= this_block_size / samplerate;
+        starttime_sec < range_start ? starttime_sec = range_start : 0;
       ) : (
-        starttime_sec += (block_size / samplerate);
+        starttime_sec += this_block_size / samplerate;
+        starttime_sec > range_end ? starttime_sec = range_end : 0;
       );
+
       cur_block += 1;
     );
 
@@ -197,169 +254,172 @@ local(range_len, range_len_smpls,
   );
 );
 
-// Find the punch-in time around base_pos using REWIND_EXTRA and silence scanning.
-function FindPunchInTime(base_pos, track) local(
-  fallback, AA, samplerate, n_channels,
-  aa_start, aa_end,
-  forward_start, forward_end,
-  backward_start, backward_end,
-  threshold_amp, silence_samples_needed,
-  center
-)(
-  // Plain behaviour if scanning fails
-  fallback = base_pos - REWIND_EXTRA;
-  fallback < 0 ? fallback = 0 : 0;
+// -----------------------------------------------------------------------------
+// Zero-cross refinement around p within +/- win_ms (channel 1 only, n_channels=1)
+// Returns refined time (or original p if none found)
+// -----------------------------------------------------------------------------
+function RefineZeroCrossing(AA, samplerate, n_channels, p, win_ms)
+local(win_s, t0, t1, span_smpls,
+      samplebuffer, total_buffer_size,
+      i, prev, cur, best_t, best_dist, tc, dist)(
+  win_s = win_ms / 1000.0;
+  t0 = p - win_s;
+  t0 < 0 ? t0 = 0;
+  t1 = p + win_s;
+  t1 <= t0 ? (RefineZeroCrossing = p;);
 
-  !track ? (
-    fallback;
+  span_smpls = floor((t1 - t0) * samplerate);
+  span_smpls < 2 ? (RefineZeroCrossing = p;);
+
+  total_buffer_size = 65536;
+  samplebuffer = 0;
+  i = 0;
+  loop(min(total_buffer_size, span_smpls * n_channels),
+    samplebuffer[i] = 0;
+    i += 1;
+  );
+
+  // For mono workflow, n_channels should be 1
+  GetAudioAccessorSamples(AA, samplerate, n_channels, t0, span_smpls, samplebuffer);
+
+  best_t = -1;
+  best_dist = 0;
+
+  prev = samplebuffer[0];
+  i = 1;
+  loop(span_smpls - 1,
+    cur = samplebuffer[i];
+
+    ((cur == 0) || (prev == 0) || (prev < 0 && cur > 0) || (prev > 0 && cur < 0)) ? (
+      tc = t0 + ((i - 1) / samplerate);
+      dist = abs(tc - p);
+      (best_t < 0 || dist < best_dist) ? (
+        best_t = tc;
+        best_dist = dist;
+      );
+    );
+
+    prev = cur;
+    i += 1;
+  );
+
+  best_t >= 0 ? best_t : p;
+);
+
+// -----------------------------------------------------------------------------
+// Deferred restore
+// -----------------------------------------------------------------------------
+function deferred_restore() local(now)(
+  now = time_precise();
+  (now - g_restore_t0) < RESTORE_DELAY_S ? (
+    defer("deferred_restore()");
   ) : (
-    AA = CreateTrackAudioAccessor(track);
+    SNM_SetDoubleConfigVar("prerollmeas", g_saved_prerollmeas);
+    restore_preroll_state(g_preRollOrig);
+    Undo_EndBlock("Unified Smart Punch-and-Roll", -1);
+  );
+);
 
-    samplerate = GetProjectSamplerate();
-    n_channels = floor(GetMediaTrackInfo_Value(track, "I_NCHAN"));
-    n_channels < 1 ? n_channels = 1 : 0;
+// -----------------------------------------------------------------------------
+// Main
+// -----------------------------------------------------------------------------
+Undo_BeginBlock();
 
-    threshold_amp        = ValFromdB(SILENCE_THRESH_DBFS);
-    silence_samples_needed = floor((MIN_SILENCE_MS * 0.001) * samplerate + 0.5);
-    silence_samples_needed < 1 ? silence_samples_needed = 1 : 0;
+// Step 0/1/2
+g_preRollOrig = get_preroll_enabled();
+stop_ref = get_reference_time();
+ensure_preroll_on(g_preRollOrig);
 
-    aa_start = GetAudioAccessorStartTime(AA);
-    aa_end   = GetAudioAccessorEndTime(AA);
+// Step 3: stop if recording
+is_recording() ? Main_OnCommand(CMD_STOP, 0);
 
-    // First pass: forwards from (base - REWIND_EXTRA) to (base - REWIND_EXTRA / 2)
-    forward_start = base_pos - REWIND_EXTRA;
-    forward_start < 0       ? forward_start = 0      : 0;
-    forward_start < aa_start? forward_start = aa_start : 0;
+// Step 4: select track
+tr = get_target_track();
+!tr ? (
+  Undo_EndBlock("Unified Smart Punch-and-Roll (failed: no target track)", -1);
+  ShowMessageBox("No target track found (no selected track and no armed track).", "Unified Smart Punch-and-Roll", 0);
+) : (
+  select_only_track(tr);
 
-    forward_end = base_pos - (REWIND_EXTRA * 0.5);
-    forward_end > aa_end    ? forward_end = aa_end   : 0;
-    forward_end < forward_start ? forward_end = forward_start : 0;
+  sr = get_project_srate();
+  threshold_amp = db_to_amp(TARGET_THRESH_DBFS);
+  silence_samples_needed = floor((MIN_SILENCE_MS/1000.0) * sr);
+  silence_samples_needed < 1 ? silence_samples_needed = 1;
 
-    center = ScanRangeForSilence(AA, samplerate, n_channels,
-                                 forward_start, forward_end,
-                                 0, threshold_amp, silence_samples_needed);
+  // Step 5
+  P0 = clamp0(stop_ref - REWIND_EXTRA);
 
-    // Second pass: backwards from (base - REWIND_EXTRA) to (base - 2*REWIND_EXTRA)
+  // Step 6: if no item at P0, jump to next item start on that track
+  it = find_item_covering_time_on_track(tr, P0);
+  !it ? (
+    next_start = find_next_item_start_at_or_after(tr, P0);
+    next_start < 0 ? (
+      Undo_EndBlock("Unified Smart Punch-and-Roll (failed: no next item)", -1);
+      ShowMessageBox("No item covers P0 and no next item start found on target track.", "Unified Smart Punch-and-Roll", 0);
+    ) : (
+      P0 = next_start;
+
+      // continue
+      AA = CreateTrackAudioAccessor(tr);
+
+      // Step 7: forward scan (P0 -> P0 + REWIND_EXTRA*0.5)
+      fwd_end = P0 + (REWIND_EXTRA * FWD_MULT);
+      center = ScanRangeForSilence(AA, sr, 1, P0, fwd_end, 0, threshold_amp, silence_samples_needed);
+
+      // Step 8: backward scan if forward failed (P0 - REWIND_EXTRA*2 -> P0)
+      center < 0 ? (
+        back_start = clamp0(P0 - (REWIND_EXTRA * BACK_MULT));
+        center = ScanRangeForSilence(AA, sr, 1, back_start, P0, 1, threshold_amp, silence_samples_needed);
+      ) : 0;
+
+      // Fallback if still not found
+      P1 = (center >= 0) ? center : P0;
+
+      // Step 9: zero-cross refine
+      P = RefineZeroCrossing(AA, sr, 1, P1, ZERO_WIN_MS);
+
+      DestroyAudioAccessor(AA);
+
+      // Step 10/11: save + set prerollmeas
+      g_saved_prerollmeas = SNM_GetDoubleConfigVar("prerollmeas", PREROLL_MEAS_TEMP);
+      SNM_SetDoubleConfigVar("prerollmeas", PREROLL_MEAS_TEMP);
+
+      // Step 12: cursor
+      set_cursor(P);
+
+      // Step 13: record
+      Main_OnCommand(CMD_RECORD, 0);
+
+      // Step 14/15: deferred restore
+      g_restore_t0 = time_precise();
+      defer("deferred_restore()");
+    );
+  ) : (
+    // item exists at P0, proceed
+
+    AA = CreateTrackAudioAccessor(tr);
+
+    fwd_end = P0 + (REWIND_EXTRA * FWD_MULT);
+    center = ScanRangeForSilence(AA, sr, 1, P0, fwd_end, 0, threshold_amp, silence_samples_needed);
+
     center < 0 ? (
-      backward_start = base_pos - (2 * REWIND_EXTRA);
-      backward_start < 0       ? backward_start = 0      : 0;
-      backward_start < aa_start? backward_start = aa_start : 0;
-
-      backward_end = forward_start;
-      backward_end > aa_end    ? backward_end = aa_end   : 0;
-      backward_end < backward_start ? backward_end = backward_start : 0;
-
-      center = ScanRangeForSilence(AA, samplerate, n_channels,
-                                   backward_start, backward_end,
-                                   1, threshold_amp, silence_samples_needed);
+      back_start = clamp0(P0 - (REWIND_EXTRA * BACK_MULT));
+      center = ScanRangeForSilence(AA, sr, 1, back_start, P0, 1, threshold_amp, silence_samples_needed);
     ) : 0;
+
+    P1 = (center >= 0) ? center : P0;
+
+    P = RefineZeroCrossing(AA, sr, 1, P1, ZERO_WIN_MS);
 
     DestroyAudioAccessor(AA);
 
-    center < 0 ? fallback : center;
+    g_saved_prerollmeas = SNM_GetDoubleConfigVar("prerollmeas", PREROLL_MEAS_TEMP);
+    SNM_SetDoubleConfigVar("prerollmeas", PREROLL_MEAS_TEMP);
+
+    set_cursor(P);
+    Main_OnCommand(CMD_RECORD, 0);
+
+    g_restore_t0 = time_precise();
+    defer("deferred_restore()");
   );
 );
-
-// Deferred loop used for the extended preview ("double pre-roll")
-function SmartPR_PreviewLoop() local(playState, now)(
-  playState = GetPlayState();
-  now       = time_precise();
-
-  // If user stopped playback early, abort without starting a new record
-  (playState != 1) && (now < g_preview_end_time) ? (
-    g_preview_active = 0;
-    Undo_EndBlock("Smart Punch and Roll (Silence-Aware, EEL)", -1);
-  ) : (
-    // If we've reached or passed the preview end time, do the real punch-in
-    now >= g_preview_end_time ? (
-      // Stop playback
-      Main_OnCommand(40044, 0); // Transport: Stop
-
-      // Jump back precisely to the punch-in point
-      SetEditCurPos(g_preview_punch_pos, 0, 0);
-
-      // If pre-roll was originally off, enable it now
-      g_preview_preRollOrig == 0 ? (
-        Main_OnCommand(41819, 0); // Toggle pre-roll ON
-      );
-
-      // Start recording from the punch-in position (with pre-roll if enabled)
-      Main_OnCommand(1013, 0);
-
-      // Restore pre-roll to its original state immediately after starting
-      g_preview_preRollOrig == 0 ? (
-        Main_OnCommand(41819, 0); // Toggle pre-roll back OFF
-      );
-
-      g_preview_active = 0;
-      Undo_EndBlock("Smart Punch and Roll (Silence-Aware, EEL)", -1);
-    ) : (
-      defer("SmartPR_PreviewLoop()");
-    );
-  );
-);
-
-// ---------------- Main Script ----------------
-
-Undo_BeginBlock();
-
-// Get original pre-roll state: 1 if on, 0 if off.
-preRollOrig = GetToggleCommandStateEx(0, 41819);
-
-// Get current play state: 0 = stopped, >0 = playing or recording.
-playState = GetPlayState();
-
-// Target track for silence analysis
-target_track = GetTargetTrack();
-
-playState > 0 ? (
-
-  // ----- TRANSPORT ACTIVE (Playing or Recording) -----
-
-  // Capture the current play position as the reference for REWIND_EXTRA. 
-  basePos = GetPlayPosition();
-
-  // Stop transport (stops both playback and recording).
-  Main_OnCommand(40044, 0);
-
-  // Compute punch-in position using silence-aware logic.
-  newPos = FindPunchInTime(basePos, target_track);
-
-  // Store punch-in time and original pre-roll state for the deferred preview
-  g_preview_punch_pos   = newPos;
-  g_preview_preRollOrig = preRollOrig;
-
-  // Work out where to start the extended preview from
-  preview_start = newPos - preview_len;
-  preview_start < 0 ? preview_start = 0;
-
-  // Move cursor to preview start and begin playback
-  SetEditCurPos(preview_start, 0, 0);
-  g_preview_end_time = time_precise() + (newPos - preview_start);
-
-  g_preview_active = 1;
-  Main_OnCommand(1007, 0); // Transport: Play
-
-  // Hand off to the deferred loop and exit this script instance
-  defer("SmartPR_PreviewLoop()");
-  return;
-
-) : (
-
-  // ----- TRANSPORT STOPPED (Nothing Playing or Recording) -----
-
-  // If pre-roll was originally off, enable it.
-  preRollOrig == 0 ? (
-    Main_OnCommand(41819, 0); // Toggle pre-roll ON
-  );
-
-  // Start recording from the current edit cursor (with pre-roll if enabled).
-  Main_OnCommand(1013, 0);
-
-  // Restore pre-roll to its original state immediately.
-  preRollOrig == 0 ? (
-    Main_OnCommand(41819, 0); // Toggle pre-roll back OFF
-  );
-);
-
-Undo_EndBlock("Smart Punch and Roll (Silence-Aware, EEL)", -1);

@@ -1,3 +1,6 @@
+-- @description Re-Import Rendered Files
+-- @version 1.0
+-- @author David Winter
 -- DW – Rebuild Breaths Track From Renders
 --
 -- Behaviour:

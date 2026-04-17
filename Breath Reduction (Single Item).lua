@@ -1,3 +1,6 @@
+-- @description Breath Reduction (Single Item)
+-- @version 1.0
+-- @author David Winter
 --[[
 ReaScript Name: Breath Reduction (Single Item)
 Author: David Winter

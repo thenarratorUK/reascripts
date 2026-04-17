@@ -1,3 +1,6 @@
+// @description Smart Ripple Insert Punch and Roll
+// @version 1.0
+// @author David Winter
 // Smart Ripple Insert Punch and Roll (EEL, Silence-Aware)
 //
 // Behaviour summary (matches Lua version + silence-aware rewind):
@@ -29,7 +32,7 @@ REWIND_EXTRA        = 3.0;   // seconds to rewind from the reference position
 SILENCE_THRESH_DBFS = -45;   // dBFS threshold for "silence"
 MIN_SILENCE_MS      = 50;    // minimum continuous silence length to count as gap
 
-preview_len = 3.0; // seconds of extra preview playback before punch-in
+preroll_len = 2.5; // temporary pre-roll length for punch-in
 
 g_preview_punch_pos   = 0;
 g_preview_preRollOrig = 0;
@@ -49,6 +52,7 @@ PH_KEY_LAST_TRACK_GUID = "LastRecordedTrackGUID";
 
 // Global for delayed pre-roll restore
 t0 = 0;
+g_saved_preroll = 0;
 
 // -----------------------------------------------------------------------------
 // Utility: dBFS → linear
@@ -328,10 +332,16 @@ function FindPunchInTime(base_pos, track) local(
 // -----------------------------------------------------------------------------
 function delayedRestore() local(now)(
   now = time_precise();
-  (now - t0) < 0.1 ? (
+  (now - t0) < 0.25 ? (
     defer("delayedRestore");
   ) : (
-    Main_OnCommand(41819, 0); // toggle pre-roll back off
+    // Restore saved pre-roll length
+    SNM_SetDoubleConfigVar("prerollmeas", g_saved_preroll);
+
+    // If pre-roll was originally OFF, turn it back OFF
+    g_preview_preRollOrig == 0 ? (
+      Main_OnCommand(41819, 0); // toggle pre-roll back off
+    );
   );
 );
 
@@ -354,6 +364,12 @@ function SmartPR_PreviewLoop() local(playState, now)(
       // Jump back precisely to the punch-in point
       SetEditCurPos(g_preview_punch_pos, 0, 0);
 
+      // Save current pre-roll length
+      g_saved_preroll = SNM_GetDoubleConfigVar("prerollmeas", preroll_len);
+
+      // Set temporary pre-roll length
+      SNM_SetDoubleConfigVar("prerollmeas", preroll_len);
+
       // If pre-roll was originally off, enable it now
       g_preview_preRollOrig == 0 ? (
         Main_OnCommand(41819, 0); // Toggle pre-roll ON
@@ -364,11 +380,9 @@ function SmartPR_PreviewLoop() local(playState, now)(
         Main_OnCommand(RI_START_CMD, 0);
       );
 
-      // If we turned pre-roll on, schedule it to be restored via delayedRestore()
-      g_preview_preRollOrig == 0 ? (
-        t0 = time_precise();
-        defer("delayedRestore");
-      );
+      // Always restore later (length always needs restoring)
+      t0 = time_precise();
+      defer("delayedRestore");
 
       g_preview_active = 0;
     ) : (
@@ -451,18 +465,12 @@ haveInsertEndPos == 1 ? (
   // Cache the Ripple Insert Start command ID for use in the deferred loop
   RI_START_CMD = NamedCommandLookup("_RS65a3b3b1e39ff25c5c9bd0d1967b3892461cff42");
 
-  // Work out where to start the preview from
-  preview_start = g_preview_punch_pos - preview_len;
-  preview_start < 0 ? preview_start = 0;
+  // No preview playback now: go straight to the punch point
+  SetEditCurPos(g_preview_punch_pos, 0, 0);
 
-  // Move cursor to preview start and begin playback
-  SetEditCurPos(preview_start, 0, 0);
-
-  g_preview_end_time = time_precise() + (g_preview_punch_pos - preview_start);
+  g_preview_end_time = time_precise(); // makes deferred loop fire immediately
   g_preview_active   = 1;
-
-  Main_OnCommand(1007, 0); // Transport: Play
-
+  
   // Hand off to the deferred preview loop; it will stop playback,
   // jump back to g_preview_punch_pos, enable pre-roll if needed,
   // run Ripple Insert Start, and schedule pre-roll restore.

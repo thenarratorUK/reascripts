@@ -1,3 +1,6 @@
+-- @description Check Voice Reference
+-- @version 1.0
+-- @author David Winter
 -- Voice Reference Preview from Placeholder
 -- Uses region or marker names derived from placeholder text.
 -- Placeholder string must contain [number_name], e.g. [06053_Bob]

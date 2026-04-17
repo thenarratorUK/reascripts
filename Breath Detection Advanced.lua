@@ -1,3 +1,6 @@
+-- @description Breath Detection Advanced
+-- @version 1.0
+-- @author David Winter
 -- Breath Preparation and Detection (Multi-Gate + ZCR/Envelope + Source-Track Classifier)
 -- Runs on the track named "Breaths".
 --

@@ -1,3 +1,6 @@
+-- @description List duplicate item notes across project
+-- @version 1.0
+-- @author David Winter
 --[[
 ReaScript Name: List duplicate item notes across project
 Description:

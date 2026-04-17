@@ -1,3 +1,6 @@
+-- @description Build Character FX Tracks and Sends
+-- @version 1.0
+-- @author David Winter
 -- Build Character FX Tracks and Sends (idempotent, reverb inheritance, bus-only FX, fixed folder layout + ordered FX)
 --
 -- Assumptions:

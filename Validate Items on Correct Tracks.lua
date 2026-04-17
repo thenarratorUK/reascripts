@@ -1,3 +1,6 @@
+-- @description Validate and optionally fix bracket name vs track assignment
+-- @version 1.1
+-- @author David Winter
 --[[
 ReaScript Name: Validate and optionally fix bracket name vs track assignment
 Description:

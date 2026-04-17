@@ -1,3 +1,6 @@
+-- @description Colour Best Takes Based On Files Remaining
+-- @version 1.0
+-- @author David Winter
 --[[
 Recolour regions based on rendered MP3 filenames in a ./Renders folder.
 

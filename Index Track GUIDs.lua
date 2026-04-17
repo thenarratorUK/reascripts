@@ -1,3 +1,6 @@
+-- @description Index Track GUIDs
+-- @version 1.0
+-- @author David Winter
 --[[
   DW_Index Track Roles (Project Startup)
   Purpose:

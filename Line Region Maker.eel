@@ -1,3 +1,6 @@
+// @description Per-Item Trim + Region by Identifier (fixed EEL memory)
+// @version 1.0
+// @author David Winter
 /**
  * ReaScript Name: Per-Item Trim + Region by Identifier (fixed EEL memory)
  *

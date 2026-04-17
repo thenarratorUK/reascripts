@@ -1,3 +1,6 @@
+-- @description Check Gaps Between Items
+-- @version 1.0
+-- @author David Winter
 --[[
 Check Long Pauses Between Items (Non-Excluded Tracks Only)
 Implements the A–J pseudo-code exactly as described.

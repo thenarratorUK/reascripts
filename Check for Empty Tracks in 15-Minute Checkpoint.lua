@@ -1,3 +1,6 @@
+-- @description Check for Empty Tracks in 15-Minute Checkpoint (list FX items)
+-- @version 1.2
+-- @author David Winter
 --[[
 ReaScript Name: Check for Empty Tracks in 15-Minute Checkpoint (list FX items)
 Description:

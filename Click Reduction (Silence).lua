@@ -1,3 +1,6 @@
+-- @description Click Reduction A (Envelope)
+-- @version 1.0
+-- @author David Winter
 --[[
 ReaScript Name: Click Reduction A (Envelope)
 Author: David Winter

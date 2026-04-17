@@ -1,3 +1,6 @@
+-- @description Check Next Breath
+-- @version 1.1
+-- @author David Winter
 --[[
   Reject Breath Script for REAPER
   Author: David Winter

@@ -1,3 +1,6 @@
+-- @description Extract Best Takes from Tracks 1&2 to Tracks 3&4
+-- @version 1.0
+-- @author David Winter
 --[[
 Green-region extractor + assembler
 

@@ -1,3 +1,6 @@
+-- @description FInd Next Multitake Item
+-- @version 1.0
+-- @author David Winter
 -- Move edit cursor to next COLOURED item that is NOT orange,
 -- excluding items on specific tracks OR any of their descendant tracks.
 -- Scans all tracks in the current project.

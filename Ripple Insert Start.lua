@@ -1,3 +1,6 @@
+-- @description Ripple Insert Start
+-- @version 1.6
+-- @author David Winter
 --[[
   ReaScript Name: Ripple Insert Start
   Author: David Winter

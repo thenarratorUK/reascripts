@@ -1,3 +1,6 @@
+-- @description Copy to All Tracks
+-- @version 1.0
+-- @author David Winter
 -- Duplicate all items from the first track to all other existing tracks
 reaper.Undo_BeginBlock()
 

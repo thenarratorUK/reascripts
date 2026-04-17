@@ -1,3 +1,4 @@
+-- @version 1.0
 -- @description ReaGate Threshold: 4-point dip via actions (+ slow start/end on points 1 and 3)
 -- @author David Winter
 
