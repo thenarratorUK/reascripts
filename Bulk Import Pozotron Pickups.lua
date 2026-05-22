@@ -1,5 +1,5 @@
 -- @description Import multiple CSV marker files, align them to their corresponding regions, set project start time, and apply marker colors
--- @version 3.5 (adds direct Script Sync pickup-region requests)
+-- @version 3.4 (cleaned, flexible region matching)
 -- @author David Winter
 -- @about This script reads CSV marker files, finds the corresponding region based on the filename, sets the edit cursor and project start time to the region start, and then imports markers with the proper color and relative positions.
 
@@ -33,75 +33,6 @@ local function hexToNativeColor(hex)
     return 0
   end
   return reaper.ColorToNative(r, g, b)
-end
-
------------------------------------------------------------
--- Script Sync Direct Region Requests
------------------------------------------------------------
-
-local SCRIPT_SYNC_SECTION = "ScriptSyncPickup"
-local SCRIPT_SYNC_KEYS = { "mode", "request_id", "name", "start", "end", "color" }
-
-local function getProjectExtStateValue(key)
-  local ok, value = reaper.GetProjExtState(0, SCRIPT_SYNC_SECTION, key)
-  if ok == 0 then
-    return ""
-  end
-  return value or ""
-end
-
-local function clearScriptSyncRequest()
-  for _, key in ipairs(SCRIPT_SYNC_KEYS) do
-    reaper.SetProjExtState(0, SCRIPT_SYNC_SECTION, key, "")
-  end
-end
-
-local function regionAlreadyExists(name, pos, rgnend, tolerance)
-  local idx = 0
-  while true do
-    local retval, isrgn, existing_pos, existing_end, existing_name = reaper.EnumProjectMarkers(idx)
-    if not retval then break end
-    if isrgn
-      and existing_name == name
-      and math.abs(existing_pos - pos) <= tolerance
-      and math.abs(existing_end - rgnend) <= tolerance
-    then
-      return true
-    end
-    idx = idx + 1
-  end
-  return false
-end
-
-local function processScriptSyncRegionRequest()
-  if getProjectExtStateValue("mode") ~= "region" then
-    return false
-  end
-
-  local name = getProjectExtStateValue("name"):gsub("[\r\n\t]", " ")
-  local pos = tonumber(getProjectExtStateValue("start"))
-  local rgnend = tonumber(getProjectExtStateValue("end"))
-  local colorText = getProjectExtStateValue("color")
-  clearScriptSyncRequest()
-
-  if name == "" or not pos or not rgnend then
-    reaper.ShowMessageBox("Script Sync pickup region request was incomplete.", "Script Sync", 0)
-    return true
-  end
-  if rgnend <= pos then
-    rgnend = pos + 1
-  end
-
-  local color = hexToNativeColor(colorText ~= "" and colorText or "990000") | 0x1000000
-  if not regionAlreadyExists(name, pos, rgnend, 0.02) then
-    local markerIndex = reaper.AddProjectMarker2(0, true, pos, rgnend, name, -1, color)
-    if markerIndex >= 0 then
-      reaper.SetProjectMarker(markerIndex, true, pos, rgnend, name, color)
-    end
-  end
-  reaper.SetEditCurPos(pos, false, false)
-  reaper.UpdateTimeline()
-  return true
 end
 
 -----------------------------------------------------------
@@ -292,8 +223,6 @@ end
 local projectPath = reaper.GetProjectPath(0, "")
 -- Remove "/./Media" if present
 projectPath = projectPath:gsub("/%./Media", "")
-if not processScriptSyncRegionRequest() then
-  local directory = projectPath .. "/Pozotron"
-  processCSVFiles(directory)
-  deleteCSVFiles(directory)
-end
+local directory = projectPath .. "/Pozotron"
+processCSVFiles(directory)
+deleteCSVFiles(directory)
