@@ -1,5 +1,5 @@
 -- @description Detect Long Pauses Across Selected Tracks
--- @version 1.0
+-- @version 1.1
 -- @author David Winter
 -- @about
 --   Select one or more tracks, then run this script.
@@ -7,12 +7,13 @@
 --   The script creates one track AudioAccessor per selected track and treats
 --   the tracks as a single combined programme: a frame is silent only when
 --   every channel on every selected track is at or below -60 dBFS. It reports
---   every continuous pause lasting more than 1.2 seconds.
+--   every continuous pause lasting more than 1.2 seconds by adding a project
+--   marker named "Long Pause?" at the start of the pause.
 --
 --   If there is a time selection, only that range is analysed. Otherwise the
 --   range runs from the earliest item start to the latest item end on the
---   selected tracks. Results are written to REAPER's ReaScript console; the
---   project itself is not changed.
+--   selected tracks. Existing "Long Pause?" markers at the same positions are
+--   reused, so running the script again does not create duplicates.
 --
 --   Track AudioAccessors read the signal immediately before track FX. Item
 --   fades, take FX, take/item gain, and overlapping items are represented in
@@ -23,6 +24,7 @@ local SILENCE_THRESHOLD_DB = -60.0
 local MINIMUM_PAUSE_SECONDS = 1.2
 local BLOCK_FRAMES = 32768
 local FALLBACK_SAMPLE_RATE = 48000
+local MARKER_NAME = "Long Pause?"
 
 local SILENCE_THRESHOLD_AMP = 10 ^ (SILENCE_THRESHOLD_DB / 20.0)
 
@@ -198,53 +200,50 @@ local function detect_pauses(tracks, range_start, range_end, sample_rate)
   return pauses
 end
 
-local function format_project_time(position)
-  return reaper.format_timestr_pos(position, "", -1)
-end
+local function get_existing_pause_markers()
+  local positions = {}
+  local marker_count = select(1, reaper.CountProjectMarkers(PROJECT))
 
-local function build_report(tracks, pauses, range_start, range_end, range_source, sample_rate)
-  local lines = {
-    "Detect Long Pauses",
-    string.rep("=", 72),
-    string.format(
-      "Rule: all selected-track channels <= %.1f dBFS for more than %.3f s",
-      SILENCE_THRESHOLD_DB,
-      MINIMUM_PAUSE_SECONDS
-    ),
-    string.format("Sample rate: %d Hz", sample_rate),
-    string.format(
-      "Range (%s): %s  to  %s",
-      range_source,
-      format_project_time(range_start),
-      format_project_time(range_end)
-    ),
-    "Tracks:",
-  }
-
-  for _, context in ipairs(tracks) do
-    lines[#lines + 1] = string.format("  %s (%d ch)", context.name, context.channels)
-  end
-
-  lines[#lines + 1] = ""
-  if #pauses == 0 then
-    lines[#lines + 1] = "No pauses longer than 1.2 seconds were found."
-  else
-    lines[#lines + 1] = string.format("Found %d long pause%s:", #pauses, #pauses == 1 and "" or "s")
-    lines[#lines + 1] = ""
-    for i, pause in ipairs(pauses) do
-      lines[#lines + 1] = string.format(
-        "%3d.  %s  to  %s    %.3f s",
-        i,
-        format_project_time(pause.start_time),
-        format_project_time(pause.end_time),
-        pause.duration
-      )
+  for i = 0, marker_count - 1 do
+    local found, is_region, position, _, name = reaper.EnumProjectMarkers(i)
+    if found and not is_region and (name or "") == MARKER_NAME then
+      positions[#positions + 1] = position
     end
   end
 
-  lines[#lines + 1] = ""
-  lines[#lines + 1] = "The project was not changed."
-  return table.concat(lines, "\n") .. "\n"
+  return positions
+end
+
+local function has_marker_at(positions, target, tolerance)
+  for _, position in ipairs(positions) do
+    if math.abs(position - target) <= tolerance then return true end
+  end
+  return false
+end
+
+local function add_pause_markers(pauses, sample_rate)
+  local existing_positions = get_existing_pause_markers()
+  local tolerance = (1 / sample_rate) + 1e-9
+  local added = 0
+  local already_present = 0
+
+  for _, pause in ipairs(pauses) do
+    if has_marker_at(existing_positions, pause.start_time, tolerance) then
+      already_present = already_present + 1
+    else
+      if added == 0 then reaper.Undo_BeginBlock() end
+      reaper.AddProjectMarker2(PROJECT, false, pause.start_time, 0, MARKER_NAME, -1, 0)
+      existing_positions[#existing_positions + 1] = pause.start_time
+      added = added + 1
+    end
+  end
+
+  if added > 0 then
+    reaper.Undo_EndBlock("Add Long Pause? markers", -1)
+    reaper.UpdateArrange()
+  end
+
+  return added, already_present
 end
 
 local function main()
@@ -254,7 +253,7 @@ local function main()
     return
   end
 
-  local range_start, range_end, range_source = get_analysis_range(tracks)
+  local range_start, range_end = get_analysis_range(tracks)
   if not range_start then
     show_error("The selected tracks contain no positive-length media items, and there is no time selection to analyse.")
     return
@@ -268,9 +267,6 @@ local function main()
     return
   end
 
-  reaper.ClearConsole()
-  reaper.ShowConsoleMsg("Detect Long Pauses: analysing selected tracks...\n")
-
   local ok, result = xpcall(function()
     return detect_pauses(tracks, range_start, range_end, sample_rate)
   end, debug.traceback)
@@ -282,15 +278,17 @@ local function main()
     return
   end
 
-  reaper.ClearConsole()
-  reaper.ShowConsoleMsg(build_report(
-    tracks,
-    result,
-    range_start,
-    range_end,
-    range_source,
-    sample_rate
-  ))
+  local added, already_present = add_pause_markers(result, sample_rate)
+  local message
+  if #result == 0 then
+    message = "No pauses longer than 1.2 seconds were found."
+  else
+    message = string.format("Added %d %s marker%s.", added, MARKER_NAME, added == 1 and "" or "s")
+    if already_present > 0 then
+      message = message .. string.format("\n%d matching marker%s already existed.", already_present, already_present == 1 and "" or "s")
+    end
+  end
+  reaper.ShowMessageBox(message, "Detect Long Pauses", 0)
 end
 
 main()
