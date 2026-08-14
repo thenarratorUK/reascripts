@@ -1,5 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<index version="1" name="thenarratorUK ReaScripts" commit="294314dba877f5aaf60933fa0d09f2755f29aeea">
+<index version="1" name="thenarratorUK ReaScripts" commit="ccf1abc8031a2c38522a2017c9f6ef30db39f345">
+  <category name="Adaptive Reference Matcher">
+    <reapack name="Adaptive Reference Matcher.jsfx" type="effect" desc="Adaptive EQ with Reference Matching">
+      <version name="0.6.0" author="David Winter" time="2026-08-14T14:14:08Z">
+        <changelog><![CDATA[Initial public beta for external testing.]]></changelog>
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/ccf1abc8031a2c38522a2017c9f6ef30db39f345/Effects/Adaptive%20Reference%20Matcher/Adaptive%20Reference%20Matcher.jsfx</source>
+        <source file="adaptive-eq-gui.png">https://github.com/thenarratorUK/reascripts/raw/ccf1abc8031a2c38522a2017c9f6ef30db39f345/Effects/Adaptive%20Reference%20Matcher/adaptive-eq-gui.png</source>
+        <source file="adaptive-eq-gui@2x.png">https://github.com/thenarratorUK/reascripts/raw/ccf1abc8031a2c38522a2017c9f6ef30db39f345/Effects/Adaptive%20Reference%20Matcher/adaptive-eq-gui%402x.png</source>
+      </version>
+    </reapack>
+  </category>
   <category name="Scripts">
     <reapack name="ADR Script Import.lua" type="script" desc="ADR Script Import">
       <version name="1.0" author="David Winter" time="2026-04-17T19:52:02Z">
