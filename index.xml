@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<index version="1" name="thenarratorUK ReaScripts" commit="ccf1abc8031a2c38522a2017c9f6ef30db39f345">
+<index version="1" name="thenarratorUK ReaScripts" commit="771dfaff1de6c4b899dffa335ed9b735a2dd31c0">
   <category name="Adaptive Reference Matcher">
     <reapack name="Adaptive Reference Matcher.jsfx" type="effect" desc="Adaptive EQ with Reference Matching">
       <version name="0.6.0" author="David Winter" time="2026-08-14T14:14:08Z">
@@ -329,6 +329,12 @@
     <reapack name="Ripple Punch-In.lua" type="script" desc="Ripple Punch-In">
       <version name="1.0" author="David Winter" time="2026-04-17T19:52:02Z">
         <source main="main">https://github.com/thenarratorUK/reascripts/raw/294314dba877f5aaf60933fa0d09f2755f29aeea/Ripple%20Punch-In.lua</source>
+      </version>
+    </reapack>
+    <reapack name="Script Sync Add Pickup Region.lua" type="script" desc="Add Script Sync pickup regions, focus the active audio track, and report source timing">
+      <version name="1.3" author="David Winter" time="2026-08-14T14:51:53Z">
+        <changelog><![CDATA[Initial ReaPack release for the local Script Sync viewer.]]></changelog>
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/771dfaff1de6c4b899dffa335ed9b735a2dd31c0/Script%20Sync%20Add%20Pickup%20Region.lua</source>
       </version>
     </reapack>
     <reapack name="Serialise FX Chains.lua" type="script" desc="Split AllFX and Dialogue Bus into one-plugin-per-track chains">
