@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<index version="1" name="thenarratorUK ReaScripts" commit="771dfaff1de6c4b899dffa335ed9b735a2dd31c0">
+<index version="1" name="thenarratorUK ReaScripts" commit="11dfa82404e0aafbd3d8423fb0b5da37f13912e2">
   <category name="Adaptive Reference Matcher">
     <reapack name="Adaptive Reference Matcher.jsfx" type="effect" desc="Adaptive EQ with Reference Matching">
       <version name="0.6.0" author="David Winter" time="2026-08-14T14:14:08Z">
@@ -7,6 +7,17 @@
         <source main="main">https://github.com/thenarratorUK/reascripts/raw/ccf1abc8031a2c38522a2017c9f6ef30db39f345/Effects/Adaptive%20Reference%20Matcher/Adaptive%20Reference%20Matcher.jsfx</source>
         <source file="adaptive-eq-gui.png">https://github.com/thenarratorUK/reascripts/raw/ccf1abc8031a2c38522a2017c9f6ef30db39f345/Effects/Adaptive%20Reference%20Matcher/adaptive-eq-gui.png</source>
         <source file="adaptive-eq-gui@2x.png">https://github.com/thenarratorUK/reascripts/raw/ccf1abc8031a2c38522a2017c9f6ef30db39f345/Effects/Adaptive%20Reference%20Matcher/adaptive-eq-gui%402x.png</source>
+      </version>
+    </reapack>
+  </category>
+  <category name="TriLeveler Pro">
+    <reapack name="TriLevelerPro.jsfx" type="effect" desc="Long-form voice leveller with ambience preservation">
+      <version name="0.1.0-beta.1" author="David Winter" time="2026-08-17T11:56:11Z">
+        <changelog><![CDATA[Initial public beta. Includes speech-targeted learning, room-tone threshold learning, configurable lookahead, ambience preservation, and a live learning-progress display.]]></changelog>
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/11dfa82404e0aafbd3d8423fb0b5da37f13912e2/Effects/TriLeveler%20Pro/TriLevelerPro.jsfx</source>
+        <source file="trilevelerpro_gfx/bg.png">https://github.com/thenarratorUK/reascripts/raw/11dfa82404e0aafbd3d8423fb0b5da37f13912e2/Effects/TriLeveler%20Pro/trilevelerpro_gfx/bg.png</source>
+        <source file="trilevelerpro_gfx/conf.png">https://github.com/thenarratorUK/reascripts/raw/11dfa82404e0aafbd3d8423fb0b5da37f13912e2/Effects/TriLeveler%20Pro/trilevelerpro_gfx/conf.png</source>
+        <source file="trilevelerpro_gfx/knob_sm.png">https://github.com/thenarratorUK/reascripts/raw/11dfa82404e0aafbd3d8423fb0b5da37f13912e2/Effects/TriLeveler%20Pro/trilevelerpro_gfx/knob_sm.png</source>
       </version>
     </reapack>
   </category>
