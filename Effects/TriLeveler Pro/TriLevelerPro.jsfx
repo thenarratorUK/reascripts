@@ -1,0 +1,1130 @@
+desc:TriLeveler Pro
+version: 2.0
+author: David Winter
+changelog: Independent signal engine and user-interface implementation
+provides: trilevelerpro_gfx/*
+
+/******************************************************************************
+TriLeveler Pro
+Copyright (C) 2026 David Winter. All rights reserved.
+
+TriLeveler Pro was designed as a homage to TriLeveler2 by Sonic Anomaly: an
+attempt to serve the same broad purpose, then extend it with additional
+calibration and ambience-preservation features. Its DSP and GUI code were
+written anew for David Winter and do not contain Sonic Anomaly source code.
+The bundled GUI image resources are original branded artwork by David Winter.
+
+Published technical foundations used by this implementation:
+- ITU-R BS.1770-5 loudness weighting and channel-energy model.
+- W3C Audio EQ Cookbook biquad coefficient formulae.
+
+TriLeveler Pro combines three independently limited correction timescales,
+speech/room classification, explicit room-tone calibration, lookahead, and a
+parallel ambience-preserving signal path.
+******************************************************************************/
+
+EffectName: TriLeveler Pro
+VendorString: David Winter
+VendorVersion: 2000
+UniqueId: '3LEP'
+
+slider1:inputTrimDB=0<-20,20,0.25>-Input Trim [dB]
+slider2:targetLUFS=-30<-46,0,0.5>-Target LUFS
+slider3:gateThresholdDB=-80<-80,0,1>-Gate Threshold [dBFS]
+slider4:gateReleaseMS=1400<20,2000,10>-Gate Release [ms]
+slider5:learnInputButton=0<0,1,1>-Learn Input Trim
+slider6:hpfAmount=0<0,1,0.1>-HPF
+slider7:learnRoomButton=0<0,1,1>-Learn Room Tone
+
+slider10:fastMaxAttenuationDB=3<0,20,1>-Fast Dynamics Max Attenuation
+slider11:fastMaxGainDB=0<0,20,1>-Fast Dynamics Max Gain
+slider12:mediumMaxAttenuationDB=2<0,20,1>-Med Dynamics Max Attenuation
+slider13:mediumMaxGainDB=1<0,20,1>-Med Dynamics Max Gain
+slider14:slowMaxAttenuationDB=2<0,20,1>-Slow Dynamics Max Attenuation
+slider15:slowMaxGainDB=2<0,20,1>-Slow Dynamics Max Gain
+
+slider20:outputTrimDB=0<-6,6,0.25>-Output Trim [dB]
+slider21:mediumTimeMS=900<100,1000,10>-Med Dyn Time [ms]
+slider22:slowTimeMS=3300<500,8000,50>-Slow Dyn Time [ms]
+slider23:learnDurationSeconds=15<5,60,1>-Learn Duration [s]
+slider24:lookaheadMode=1<0,2,1{0 ms,50 ms,200 ms}>-Lookahead
+
+filename:0,trilevelerpro_gfx/knob_sm.png
+filename:1,trilevelerpro_gfx/bg.png
+filename:2,trilevelerpro_gfx/conf.png
+resource:0,1,2
+
+@init
+
+buildLabel = "TriLeveler Pro build 260817-independent-c";
+gfx_ext_retina = 1;
+
+// REAPER slider notification masks.
+var.inputTrimSliderMask = 2^0;
+var.targetSliderMask = 2^1;
+var.gateThresholdSliderMask = 2^2;
+var.gateReleaseSliderMask = 2^3;
+var.learnInputSliderMask = 2^4;
+var.hpfSliderMask = 2^5;
+var.learnRoomSliderMask = 2^6;
+var.fastAttenuationSliderMask = 2^9;
+var.fastGainSliderMask = 2^10;
+var.mediumAttenuationSliderMask = 2^11;
+var.mediumGainSliderMask = 2^12;
+var.slowAttenuationSliderMask = 2^13;
+var.slowGainSliderMask = 2^14;
+var.outputTrimSliderMask = 2^19;
+var.mediumTimeSliderMask = 2^20;
+var.slowTimeSliderMask = 2^21;
+var.learnDurationSliderMask = 2^22;
+var.lookaheadSliderMask = 2^23;
+
+function Limit(value, lowerBound, upperBound)
+(
+  min(upperBound,max(lowerBound,value));
+);
+
+function DBToAmplitude(dbValue)
+(
+  10^(dbValue*0.05);
+);
+
+function SafeAmplitudeDB(amplitude)
+(
+  20*log10(max(amplitude,0.000000000001));
+);
+
+function SafePowerDB(power)
+(
+  -0.691 + 10*log10(max(power,0.000000000000000001));
+);
+
+// A coefficient expressed as the time required for an error to fall to 1%.
+function OnePercentRetention(milliseconds)
+(
+  exp(log(0.01)/(max(milliseconds,0.01)*0.001*srate));
+);
+
+// Transposed direct-form-II biquad. Coefficients are always normalised to a0.
+function BiquadErase()
+instance(memoryOne,memoryTwo)
+(
+  memoryOne = 0;
+  memoryTwo = 0;
+);
+
+function BiquadProcess(sample)
+instance(feedZero,feedOne,feedTwo,backOne,backTwo,memoryOne,memoryTwo,result)
+(
+  result = feedZero*sample + memoryOne;
+  memoryOne = feedOne*sample - backOne*result + memoryTwo;
+  memoryTwo = feedTwo*sample - backTwo*result;
+  result;
+);
+
+function BiquadHighPass(cornerHz,resonance)
+instance(feedZero,feedOne,feedTwo,backOne,backTwo)
+local(k,kSquared,denominator)
+(
+  k = tan($pi*Limit(cornerHz,1,srate*0.45)/srate);
+  kSquared = k*k;
+  denominator = 1/(1 + k/max(resonance,0.05) + kSquared);
+  feedZero = denominator;
+  feedOne = -2*denominator;
+  feedTwo = denominator;
+  backOne = 2*(kSquared-1)*denominator;
+  backTwo = (1-k/max(resonance,0.05)+kSquared)*denominator;
+);
+
+function BiquadHighShelf(cornerHz,resonance,gainDB)
+instance(feedZero,feedOne,feedTwo,backOne,backTwo)
+local(angle,sineValue,cosineValue,amplitude,rootAmplitude,shape,
+      shelfTerm,rawFeedZero,rawFeedOne,rawFeedTwo,rawBackZero,
+      rawBackOne,rawBackTwo,normaliser)
+(
+  angle = 2*$pi*Limit(cornerHz,1,srate*0.45)/srate;
+  sineValue = sin(angle);
+  cosineValue = cos(angle);
+  amplitude = 10^(gainDB/40);
+  rootAmplitude = sqrt(amplitude);
+  shape = sineValue/(2*max(resonance,0.05));
+  shelfTerm = 2*rootAmplitude*shape;
+
+  rawFeedZero = amplitude*((amplitude+1)+(amplitude-1)*cosineValue+shelfTerm);
+  rawFeedOne = -2*amplitude*((amplitude-1)+(amplitude+1)*cosineValue);
+  rawFeedTwo = amplitude*((amplitude+1)+(amplitude-1)*cosineValue-shelfTerm);
+  rawBackZero = (amplitude+1)-(amplitude-1)*cosineValue+shelfTerm;
+  rawBackOne = 2*((amplitude-1)-(amplitude+1)*cosineValue);
+  rawBackTwo = (amplitude+1)-(amplitude-1)*cosineValue-shelfTerm;
+
+  normaliser = 1/rawBackZero;
+  feedZero = rawFeedZero*normaliser;
+  feedOne = rawFeedOne*normaliser;
+  feedTwo = rawFeedTwo*normaliser;
+  backOne = rawBackOne*normaliser;
+  backTwo = rawBackTwo*normaliser;
+);
+
+function LoudnessWeightingPrepare()
+(
+  // Frequencies and gains from the BS.1770 K-weighting specification.
+  this.presence.BiquadHighShelf(1681.97445095553,0.7071752369554196,3.99984385397);
+  this.rolloff.BiquadHighPass(38.13547087602444,0.5003270373238773);
+);
+
+function LoudnessWeightingClear()
+(
+  this.presence.BiquadErase();
+  this.rolloff.BiquadErase();
+);
+
+function LoudnessWeightingProcess(sample)
+local(emphasised)
+(
+  emphasised = this.presence.BiquadProcess(sample);
+  this.rolloff.BiquadProcess(emphasised);
+);
+
+// Optional subsonic filter. Amount 0 is a true bypass; amount 1 reaches 80 Hz.
+function SubsonicPrepare(amount)
+instance(enabled,pole)
+local(corner)
+(
+  enabled = amount > 0.0001;
+  corner = 15 + 65*amount*amount;
+  pole = exp(-2*$pi*corner/srate);
+);
+
+function SubsonicClear()
+instance(previousInput,previousOutput)
+(
+  previousInput = 0;
+  previousOutput = 0;
+);
+
+function SubsonicProcess(sample)
+instance(enabled,pole,previousInput,previousOutput)
+local(filtered)
+(
+  enabled ? (
+    filtered = pole*(previousOutput + sample - previousInput);
+    previousInput = sample;
+    previousOutput = filtered;
+    filtered;
+  ) : (
+    previousInput = sample;
+    previousOutput = 0;
+    sample;
+  );
+);
+
+function LowBandPrepare(cornerHz)
+instance(step)
+(
+  step = 1-exp(-2*$pi*cornerHz/srate);
+);
+
+function LowBandClear()
+instance(state)
+(
+  state = 0;
+);
+
+function LowBandProcess(sample)
+instance(step,state)
+(
+  state += step*(sample-state);
+);
+
+function PowerTrackerClear()
+instance(energy,hasValue)
+(
+  energy = 0;
+  hasValue = 0;
+);
+
+function PowerTrackerPush(samplePower,retention)
+instance(energy,hasValue)
+(
+  hasValue ? energy = samplePower + retention*(energy-samplePower) : (
+    energy = samplePower;
+    hasValue = 1;
+  );
+  energy;
+);
+
+function PeakTrackerClear()
+instance(peak)
+(
+  peak = 0;
+);
+
+function PeakTrackerPush(magnitude,fallRetention)
+instance(peak)
+(
+  magnitude >= peak ? peak = magnitude : peak *= fallRetention;
+  peak;
+);
+
+function ClearGainState()
+(
+  fastPower.PowerTrackerClear();
+  mediumPower.PowerTrackerClear();
+  slowPower.PowerTrackerClear();
+  fastGainStateDB = 0;
+  mediumGainStateDB = 0;
+  slowGainStateDB = 0;
+  appliedGain = 1;
+  gainBootstrapEnergy = 0;
+  gainBootstrapCount = 0;
+  gainBootstrapRequired = max(floor(srate*0.005+0.5),1);
+);
+
+function PrepareMemory()
+(
+  // The ring always reserves the maximum 200 ms so slider changes cannot make
+  // feature histograms overlap audio data.
+  var.delayCapacity = ceil(srate*0.2)+4;
+  var.delayLeftBase = 0;
+  var.delayRightBase = var.delayLeftBase+var.delayCapacity;
+  var.correctionHistogramBase = var.delayRightBase+var.delayCapacity;
+  var.correctionHistogramBins = 161;
+  var.correctionHistogramMinimum = -20;
+  var.correctionHistogramStep = 0.25;
+
+  var.featureHistogramBins = 201;
+  var.featureMinimumDB = -100;
+  var.featureStepDB = 0.5;
+  var.featureCountBase = var.correctionHistogramBase+var.correctionHistogramBins;
+  var.featureChangeBase = var.featureCountBase+var.featureHistogramBins;
+  var.featureLowShareBase = var.featureChangeBase+var.featureHistogramBins;
+  var.memoryEnd = var.featureLowShareBase+var.featureHistogramBins;
+
+  memset(var.delayLeftBase,0,var.memoryEnd);
+  delayWriteIndex = 0;
+);
+
+function ClearDelayRing()
+(
+  memset(var.delayLeftBase,0,var.delayCapacity*2);
+  delayWriteIndex = 0;
+);
+
+function PrepareFilters()
+(
+  inputWeightLeft.LoudnessWeightingPrepare();
+  inputWeightRight.LoudnessWeightingPrepare();
+  outputWeightLeft.LoudnessWeightingPrepare();
+  outputWeightRight.LoudnessWeightingPrepare();
+  optionalHPFLeft.SubsonicPrepare(hpfAmount);
+  optionalHPFRight.SubsonicPrepare(hpfAmount);
+  learnLowLeft.LowBandPrepare(180);
+  learnLowRight.LowBandPrepare(180);
+);
+
+function ClearFilters()
+(
+  inputWeightLeft.LoudnessWeightingClear();
+  inputWeightRight.LoudnessWeightingClear();
+  outputWeightLeft.LoudnessWeightingClear();
+  outputWeightRight.LoudnessWeightingClear();
+  optionalHPFLeft.SubsonicClear();
+  optionalHPFRight.SubsonicClear();
+  learnLowLeft.LowBandClear();
+  learnLowRight.LowBandClear();
+);
+
+function ApplyParameters()
+local(requestedLookahead)
+(
+  inputLinear = DBToAmplitude(inputTrimDB);
+  outputLinear = DBToAmplitude(outputTrimDB);
+  thresholdLinear = DBToAmplitude(gateThresholdDB);
+
+  gateAttackRetention = OnePercentRetention(5);
+  gateReleaseRetention = OnePercentRetention(gateReleaseMS);
+  detectorFallRetention = OnePercentRetention(50);
+  fastPowerRetention = OnePercentRetention(50);
+  mediumPowerRetention = OnePercentRetention(mediumTimeMS);
+  slowPowerRetention = OnePercentRetention(slowTimeMS);
+  fastGainRetention = OnePercentRetention(50);
+  mediumGainRetention = OnePercentRetention(mediumTimeMS);
+  slowGainRetention = OnePercentRetention(slowTimeMS);
+  outputMeterRetention = OnePercentRetention(400);
+
+  requestedLookahead = lookaheadMode < 0.5 ? 0 : lookaheadMode < 1.5 ? 0.05 : 0.2;
+  lookaheadSamples = floor(requestedLookahead*srate+0.5);
+  lookaheadSamples != previousLookaheadSamples ? (
+    previousLookaheadSamples = lookaheadSamples;
+    ClearDelayRing();
+    gateCloseCountdown = 0;
+  );
+
+  fastGainStateDB = Limit(fastGainStateDB,-fastMaxAttenuationDB,fastMaxGainDB);
+  mediumGainStateDB = Limit(mediumGainStateDB,-mediumMaxAttenuationDB,mediumMaxGainDB);
+  slowGainStateDB = Limit(slowGainStateDB,-slowMaxAttenuationDB,slowMaxGainDB);
+  optionalHPFLeft.SubsonicPrepare(hpfAmount);
+  optionalHPFRight.SubsonicPrepare(hpfAmount);
+);
+
+function ResetFeatureHistograms(warmupMilliseconds)
+(
+  memset(var.featureCountBase,0,var.featureHistogramBins);
+  memset(var.featureChangeBase,0,var.featureHistogramBins);
+  memset(var.featureLowShareBase,0,var.featureHistogramBins);
+  featureFrameLength = max(floor(srate*0.02+0.5),1);
+  featureFramePosition = 0;
+  featureWarmupSamples = max(floor(srate*warmupMilliseconds*0.001+0.5),0);
+  featureFrames = 0;
+  featurePeak = 0;
+  featureBroadEnergy = 0;
+  featureLowEnergy = 0;
+  previousFeatureLevelValid = 0;
+  provisionalClassifierAvailable = 0;
+  trustedClassifierAvailable = 0;
+  classifierAvailable = 0;
+  learnDecisionPeak.PeakTrackerClear();
+  learnLowLeft.LowBandClear();
+  learnLowRight.LowBandClear();
+);
+
+function RecordFeatureSample(leftSample,rightSample)
+local(magnitude,lowLeft,lowRight,levelDB,levelChange,lowShare,index)
+(
+  magnitude = max(abs(leftSample),abs(rightSample));
+  learnDecisionPeak.PeakTrackerPush(magnitude,detectorFallRetention);
+  featurePeak = max(featurePeak,magnitude);
+  lowLeft = learnLowLeft.LowBandProcess(leftSample);
+  lowRight = learnLowRight.LowBandProcess(rightSample);
+  featureBroadEnergy += 0.5*(leftSample*leftSample+rightSample*rightSample);
+  featureLowEnergy += 0.5*(lowLeft*lowLeft+lowRight*lowRight);
+
+  featureWarmupSamples > 0 ? (
+    featureWarmupSamples -= 1;
+    featureFramePosition = 0;
+    featurePeak = 0;
+    featureBroadEnergy = 0;
+    featureLowEnergy = 0;
+  ) : (
+    featureFramePosition += 1;
+    featureFramePosition >= featureFrameLength ? (
+      levelDB = max(SafeAmplitudeDB(featurePeak),var.featureMinimumDB);
+      levelChange = previousFeatureLevelValid ? abs(levelDB-previousFeatureLevelDB) : 0;
+      lowShare = Limit(featureLowEnergy/max(featureBroadEnergy,0.000000000000000001),0,1);
+      index = floor((levelDB-var.featureMinimumDB)/var.featureStepDB);
+      index = Limit(index,0,var.featureHistogramBins-1);
+      var.featureCountBase[index] += 1;
+      var.featureChangeBase[index] += levelChange;
+      var.featureLowShareBase[index] += lowShare;
+      featureFrames += 1;
+      previousFeatureLevelDB = levelDB;
+      previousFeatureLevelValid = 1;
+      featureFramePosition = 0;
+      featurePeak = 0;
+      featureBroadEnergy = 0;
+      featureLowEnergy = 0;
+    );
+  );
+);
+
+function AnalyseFeatureHistogram()
+local(index,count,binLevel,totalFrames,totalWeightedLevel,leftFrames,leftWeightedLevel,
+      rightFrames,rightWeightedLevel,leftAverage,rightAverage,separation,betweenScore,
+      strongestScore,strongestIndex,strongestLeftFrames,strongestRightFrames,
+      strongestLeftAverage,strongestRightAverage,leftChange,rightChange,leftLowShare,
+      rightLowShare,evidence,clearance,thresholdProposal)
+(
+  provisionalClassifierAvailable = 0;
+  trustedClassifierAvailable = 0;
+  totalFrames = featureFrames;
+
+  totalFrames >= 50 ? (
+    totalWeightedLevel = 0;
+    index = 0;
+    loop(var.featureHistogramBins,
+      count = var.featureCountBase[index];
+      binLevel = var.featureMinimumDB+(index+0.5)*var.featureStepDB;
+      totalWeightedLevel += count*binLevel;
+      index += 1;
+    );
+
+    leftFrames = 0;
+    leftWeightedLevel = 0;
+    strongestScore = -1;
+    strongestIndex = -1;
+    index = 0;
+    loop(var.featureHistogramBins-1,
+      count = var.featureCountBase[index];
+      binLevel = var.featureMinimumDB+(index+0.5)*var.featureStepDB;
+      leftFrames += count;
+      leftWeightedLevel += count*binLevel;
+      rightFrames = totalFrames-leftFrames;
+      rightWeightedLevel = totalWeightedLevel-leftWeightedLevel;
+      leftFrames >= max(totalFrames*0.05,10) && rightFrames >= max(totalFrames*0.20,25) ? (
+        leftAverage = leftWeightedLevel/leftFrames;
+        rightAverage = rightWeightedLevel/rightFrames;
+        separation = rightAverage-leftAverage;
+        betweenScore = leftFrames*rightFrames*separation*separation/(totalFrames*totalFrames);
+        betweenScore > strongestScore ? (
+          strongestScore = betweenScore;
+          strongestIndex = index;
+          strongestLeftFrames = leftFrames;
+          strongestRightFrames = rightFrames;
+          strongestLeftAverage = leftAverage;
+          strongestRightAverage = rightAverage;
+        );
+      );
+      index += 1;
+    );
+
+    strongestIndex >= 0 ? (
+      leftChange = rightChange = leftLowShare = rightLowShare = 0;
+      index = 0;
+      loop(var.featureHistogramBins,
+        index <= strongestIndex ? (
+          leftChange += var.featureChangeBase[index];
+          leftLowShare += var.featureLowShareBase[index];
+        ) : (
+          rightChange += var.featureChangeBase[index];
+          rightLowShare += var.featureLowShareBase[index];
+        );
+        index += 1;
+      );
+
+      leftChange /= max(strongestLeftFrames,1);
+      rightChange /= max(strongestRightFrames,1);
+      leftLowShare /= max(strongestLeftFrames,1);
+      rightLowShare /= max(strongestRightFrames,1);
+      separation = strongestRightAverage-strongestLeftAverage;
+      evidence = (leftChange+0.15 < rightChange) + (leftLowShare > rightLowShare+0.03);
+      clearance = Limit(separation*0.35,4,10);
+      thresholdProposal = min(strongestLeftAverage+clearance,strongestRightAverage-3);
+      thresholdProposal = Limit(thresholdProposal,-80,0);
+
+      separation >= 6 ? (
+        provisionalThresholdDB = thresholdProposal;
+        provisionalClassifierAvailable = 1;
+      );
+
+      (separation >= 8 && evidence >= 2) || (separation >= 12 && evidence >= 1) ? (
+        trustedThresholdDB = thresholdProposal;
+        trustedClassifierAvailable = 1;
+      );
+    );
+  );
+);
+
+function RefreshLearnClassifier()
+local(wasAvailable)
+(
+  wasAvailable = classifierAvailable;
+  AnalyseFeatureHistogram();
+  trustedClassifierAvailable ? (
+    classifierThresholdDB = trustedThresholdDB;
+    classifierAvailable = 1;
+    learnedThresholdIsTrusted = 1;
+    learnedTrustedThresholdDB = trustedThresholdDB;
+  ) : provisionalClassifierAvailable ? (
+    classifierThresholdDB = provisionalThresholdDB;
+    classifierAvailable = 1;
+  );
+
+  !wasAvailable && classifierAvailable ? (
+    ClearGainState();
+    learnWarmupRemaining = max(floor(srate*learnStartMediumMS*0.001+0.5),1);
+  );
+);
+
+function StopInputLearning()
+(
+  inputLearnActive = 0;
+  learnInputButton = 0;
+  uiLearnInput.value = 0;
+  sliderchange(var.learnInputSliderMask);
+);
+
+function StopRoomLearning()
+(
+  roomLearnActive = 0;
+  learnRoomButton = 0;
+  uiLearnRoom.value = 0;
+  sliderchange(var.learnRoomSliderMask);
+);
+
+function BeginInputLearning()
+(
+  roomLearnActive ? StopRoomLearning();
+  memset(var.correctionHistogramBase,0,var.correctionHistogramBins);
+  ResetFeatureHistograms(150);
+  inputLearnActive = 1;
+  learnStartInputTrimDB = inputTrimDB;
+  learnStartTargetLUFS = targetLUFS;
+  learnStartMediumMS = mediumTimeMS;
+  learnStartDurationSeconds = learnDurationSeconds;
+  learnStartLookaheadMode = lookaheadMode;
+  learnStartHPFAmount = hpfAmount;
+  learnWarmupRemaining = max(floor(srate*mediumTimeMS*0.001+0.5),1);
+  learnRequiredSpeechSamples = max(floor(srate*learnDurationSeconds+0.5),1);
+  learnSpeechSamples = 0;
+  learnElapsedSamples = 0;
+  learnedThresholdIsTrusted = 0;
+  classifierRefreshPeriod = max(floor(srate*0.25+0.5),1);
+  classifierRefreshCountdown = classifierRefreshPeriod;
+  learnWallLimitSeconds = max(learnDurationSeconds*3,learnDurationSeconds+15);
+  learnWallLimitSamples = max(floor(srate*learnWallLimitSeconds+0.5),1);
+);
+
+function BeginRoomLearning()
+(
+  inputLearnActive ? StopInputLearning();
+  roomLearnActive = 1;
+  roomLearnStartHPFAmount = hpfAmount;
+  roomLearnPeak = 0;
+  roomLearnSamples = 0;
+  roomLearnRequiredSamples = max(floor(srate*0.5+0.5),1);
+);
+
+function CompleteRoomLearning()
+local(observedDB,recommendedDB)
+(
+  observedDB = SafeAmplitudeDB(roomLearnPeak);
+  recommendedDB = floor(observedDB+5.5);
+  gateThresholdDB = Limit(recommendedDB,-80,0);
+  uiGateThreshold.value = gateThresholdDB;
+  thresholdLinear = DBToAmplitude(gateThresholdDB);
+  sliderchange(var.gateThresholdSliderMask);
+  StopRoomLearning();
+);
+
+function CompleteInputLearning(commitInputTrim)
+local(index,runningCount,halfway,selectedBin,correctionDB)
+(
+  commitInputTrim && learnSpeechSamples > 0 ? (
+    halfway = learnSpeechSamples*0.5;
+    runningCount = 0;
+    selectedBin = -1;
+    index = 0;
+    loop(var.correctionHistogramBins,
+      runningCount += var.correctionHistogramBase[index];
+      selectedBin < 0 && runningCount >= halfway ? selectedBin = index;
+      index += 1;
+    );
+    selectedBin = max(selectedBin,0);
+    correctionDB = var.correctionHistogramMinimum+selectedBin*var.correctionHistogramStep;
+    inputTrimDB = Limit(learnStartInputTrimDB+correctionDB,-20,20);
+    uiInputTrim.value = inputTrimDB;
+    sliderchange(var.inputTrimSliderMask);
+  );
+
+  AnalyseFeatureHistogram();
+  trustedClassifierAvailable ? (
+    learnedThresholdIsTrusted = 1;
+    learnedTrustedThresholdDB = trustedThresholdDB;
+  );
+  learnedThresholdIsTrusted ? (
+    gateThresholdDB = Limit(floor(learnedTrustedThresholdDB+0.5),-80,0);
+    uiGateThreshold.value = gateThresholdDB;
+    sliderchange(var.gateThresholdSliderMask);
+  );
+  ApplyParameters();
+  StopInputLearning();
+);
+
+PrepareMemory();
+PrepareFilters();
+ClearFilters();
+ClearGainState();
+gateDetector.PeakTrackerClear();
+gateBlend = 1;
+outputMeter.PowerTrackerClear();
+previousLookaheadSamples = -1;
+ApplyParameters();
+playbackHasStarted = 0;
+
+@slider
+
+uiInputTrim.value = inputTrimDB;
+uiTarget.value = targetLUFS;
+uiGateThreshold.value = gateThresholdDB;
+uiGateRelease.value = gateReleaseMS;
+uiLearnInput.value = learnInputButton;
+uiHPF.value = hpfAmount;
+uiLearnRoom.value = learnRoomButton;
+uiFastAttenuation.value = fastMaxAttenuationDB;
+uiFastGain.value = fastMaxGainDB;
+uiMediumAttenuation.value = mediumMaxAttenuationDB;
+uiMediumGain.value = mediumMaxGainDB;
+uiSlowAttenuation.value = slowMaxAttenuationDB;
+uiSlowGain.value = slowMaxGainDB;
+uiOutputTrim.value = outputTrimDB;
+uiMediumTime.value = mediumTimeMS;
+uiSlowTime.value = slowTimeMS;
+uiLearnDuration.value = learnDurationSeconds;
+uiLookahead.value = lookaheadMode;
+
+ApplyParameters();
+pdc_delay = lookaheadSamples;
+pdc_bot_ch = 0;
+pdc_top_ch = 2;
+
+@block
+
+pdc_delay = lookaheadSamples;
+pdc_bot_ch = 0;
+pdc_top_ch = 2;
+
+!playbackHasStarted ? (
+  ClearGainState();
+  gateBlend = 1;
+  playbackHasStarted = 1;
+);
+
+learnInputButton && !inputLearnActive ? BeginInputLearning();
+learnRoomButton && !roomLearnActive ? BeginRoomLearning();
+!learnInputButton && inputLearnActive ? StopInputLearning();
+!learnRoomButton && roomLearnActive ? StopRoomLearning();
+
+inputLearnActive && (
+  inputTrimDB != learnStartInputTrimDB ||
+  targetLUFS != learnStartTargetLUFS ||
+  mediumTimeMS != learnStartMediumMS ||
+  learnDurationSeconds != learnStartDurationSeconds ||
+  lookaheadMode != learnStartLookaheadMode ||
+  hpfAmount != learnStartHPFAmount
+) ? StopInputLearning();
+
+roomLearnActive && hpfAmount != roomLearnStartHPFAmount ? StopRoomLearning();
+
+@sample
+
+// Fixed filtering occurs before both threshold detection and Input Trim.
+filteredLeft = optionalHPFLeft.SubsonicProcess(spl0);
+filteredRight = optionalHPFRight.SubsonicProcess(spl1);
+
+inputLearnActive ? (
+  RecordFeatureSample(filteredLeft,filteredRight);
+  learnElapsedSamples += 1;
+  classifierRefreshCountdown -= 1;
+  classifierRefreshCountdown <= 0 ? (
+    RefreshLearnClassifier();
+    classifierRefreshCountdown = classifierRefreshPeriod;
+  );
+);
+
+roomLearnActive ? (
+  roomLearnPeak = max(roomLearnPeak,max(abs(filteredLeft),abs(filteredRight)));
+  roomLearnSamples += 1;
+  roomLearnSamples >= roomLearnRequiredSamples ? CompleteRoomLearning();
+);
+
+detectorMagnitude = max(abs(filteredLeft),abs(filteredRight));
+detectedEnvelope = gateDetector.PeakTrackerPush(detectorMagnitude,detectorFallRetention);
+thresholdSpeech = detectedEnvelope >= thresholdLinear;
+classifierLinear = DBToAmplitude(classifierThresholdDB);
+learnSpeech = inputLearnActive && classifierAvailable &&
+              learnDecisionPeak.peak >= classifierLinear;
+speechPresent = inputLearnActive && classifierAvailable ? learnSpeech : thresholdSpeech;
+
+speechPresent ? gateCloseCountdown = lookaheadSamples+floor(srate*0.02) : (
+  gateCloseCountdown > 0 ? gateCloseCountdown -= 1;
+);
+gateShouldOpen = speechPresent || gateCloseCountdown > 0;
+gateShouldOpen ? gateBlend = 1-(1-gateBlend)*gateAttackRetention :
+                 gateBlend *= gateReleaseRetention;
+gateBlend = Limit(gateBlend,0,1);
+
+trimmedLeft = filteredLeft*inputLinear;
+trimmedRight = filteredRight*inputLinear;
+
+weightedLeft = inputWeightLeft.LoudnessWeightingProcess(trimmedLeft);
+weightedRight = inputWeightRight.LoudnessWeightingProcess(trimmedRight);
+instantPower = weightedLeft*weightedLeft+weightedRight*weightedRight;
+
+speechPresent ? (
+  !mediumPower.hasValue ? (
+    // Bootstrap from 5 ms of speech energy instead of the first waveform
+    // sample, which may happen to be a zero crossing.
+    gainBootstrapEnergy += instantPower;
+    gainBootstrapCount += 1;
+    gainBootstrapCount >= gainBootstrapRequired ? (
+      bootstrapPower = gainBootstrapEnergy/gainBootstrapCount;
+      fastPower.energy = mediumPower.energy = slowPower.energy = bootstrapPower;
+      fastPower.hasValue = mediumPower.hasValue = slowPower.hasValue = 1;
+      fastEnergy = mediumEnergy = slowEnergy = bootstrapPower;
+    );
+  ) : (
+    fastEnergy = fastPower.PowerTrackerPush(instantPower,fastPowerRetention);
+    mediumEnergy = mediumPower.PowerTrackerPush(instantPower,mediumPowerRetention);
+    slowEnergy = slowPower.PowerTrackerPush(instantPower,slowPowerRetention);
+
+    fastLoudnessDB = SafePowerDB(fastEnergy);
+    mediumLoudnessDB = SafePowerDB(mediumEnergy);
+    slowLoudnessDB = SafePowerDB(slowEnergy);
+
+    slowWantedDB = Limit(targetLUFS-slowLoudnessDB,-slowMaxAttenuationDB,slowMaxGainDB);
+    slowGainStateDB = slowWantedDB+slowGainRetention*(slowGainStateDB-slowWantedDB);
+    mediumWantedDB = Limit(targetLUFS-mediumLoudnessDB-slowGainStateDB,
+                           -mediumMaxAttenuationDB,mediumMaxGainDB);
+    mediumGainStateDB = mediumWantedDB+
+                        mediumGainRetention*(mediumGainStateDB-mediumWantedDB);
+    fastWantedDB = Limit(targetLUFS-fastLoudnessDB-slowGainStateDB-mediumGainStateDB,
+                         -fastMaxAttenuationDB,fastMaxGainDB);
+    fastGainStateDB = fastWantedDB+fastGainRetention*(fastGainStateDB-fastWantedDB);
+    appliedGain = DBToAmplitude(fastGainStateDB+mediumGainStateDB+slowGainStateDB);
+  );
+);
+
+// Learn Input collects the unclamped medium-timescale correction. Existing
+// Gate Threshold is not consulted anywhere in this selection path.
+inputLearnActive && learnSpeech && mediumPower.hasValue ? (
+  learnWarmupRemaining > 0 ? learnWarmupRemaining -= 1 : (
+    learnCorrectionDB = Limit(targetLUFS-mediumLoudnessDB,-20,20);
+    learnCorrectionBin = floor((learnCorrectionDB-var.correctionHistogramMinimum)/
+                               var.correctionHistogramStep+0.5);
+    learnCorrectionBin = Limit(learnCorrectionBin,0,var.correctionHistogramBins-1);
+    var.correctionHistogramBase[learnCorrectionBin] += 1;
+    learnSpeechSamples += 1;
+    learnSpeechSamples >= learnRequiredSpeechSamples ? CompleteInputLearning(1);
+  );
+);
+
+inputLearnActive && learnElapsedSamples >= learnWallLimitSamples ?
+  CompleteInputLearning(0);
+
+// Current control signals act on delayed audio, providing true lookahead.
+var.delayLeftBase[delayWriteIndex] = trimmedLeft;
+var.delayRightBase[delayWriteIndex] = trimmedRight;
+delayReadIndex = delayWriteIndex-lookaheadSamples;
+delayReadIndex < 0 ? delayReadIndex += var.delayCapacity;
+delayedLeft = var.delayLeftBase[delayReadIndex];
+delayedRight = var.delayRightBase[delayReadIndex];
+delayWriteIndex += 1;
+delayWriteIndex >= var.delayCapacity ? delayWriteIndex = 0;
+
+// Ambience is never multiplied by the learned speech gain. The crossfade only
+// introduces dynamic correction while the speech envelope is open.
+blendGain = 1+gateBlend*(appliedGain-1);
+spl0 = delayedLeft*blendGain*outputLinear;
+spl1 = delayedRight*blendGain*outputLinear;
+
+meterLeft = outputWeightLeft.LoudnessWeightingProcess(spl0);
+meterRight = outputWeightRight.LoudnessWeightingProcess(spl1);
+meterPower = outputMeter.PowerTrackerPush(meterLeft*meterLeft+meterRight*meterRight,
+                                          outputMeterRetention);
+outputLoudnessDB = SafePowerDB(meterPower);
+
+@gfx 450 719
+
+// The GUI below is an independent retained-mode control layer. All positions
+// use the 450x719 logical workspace; only final drawing and mouse coordinates
+// are transformed for Retina displays.
+
+function UiInside(left,top,width,height)
+(
+  uiMouseX >= left && uiMouseX <= left+width &&
+  uiMouseY >= top && uiMouseY <= top+height;
+);
+
+function UiRangeConfigure(xPosition,yPosition,trackWidth,lowValue,highValue,
+                         stepSize,resetValue,unitText,displayMode)
+(
+  this.left = xPosition;
+  this.top = yPosition;
+  this.width = trackWidth;
+  this.minimum = lowValue;
+  this.maximum = highValue;
+  this.increment = stepSize;
+  this.defaultValue = resetValue;
+  this.unit = unitText;
+  this.mode = displayMode;
+  this.disabled = 0;
+);
+
+function UiRangePaint(controlNumber)
+instance(left,top,width,minimum,maximum,increment,defaultValue,unit,mode,value,disabled)
+local(inside,usableWidth,normalised,quantised,knobLeft,sourceWidth,sourceHeight,
+      knobScale,displayText,textWidth,textHeight)
+(
+  inside = UiInside(left,top,width,20);
+  uiLeftPressed && inside && !disabled ? uiCapturedControl = controlNumber;
+  uiRightPressed && inside && !disabled ? (
+    value = defaultValue;
+    uiValueChanged = 1;
+  );
+
+  uiCapturedControl == controlNumber && uiLeftDown ? (
+    usableWidth = max(width-34,1);
+    normalised = Limit((uiMouseX-left-16)/usableWidth,0,1);
+    quantised = floor((minimum+normalised*(maximum-minimum))/increment+0.5)*increment;
+    quantised != value ? uiValueChanged = 1;
+    value = Limit(quantised,minimum,maximum);
+  );
+  uiCapturedControl == controlNumber && !uiLeftDown ? uiCapturedControl = -1;
+
+  normalised = (value-minimum)/max(maximum-minimum,0.000001);
+  knobLeft = left+normalised*(width-34);
+  gfx_getimgdim(0,sourceWidth,sourceHeight);
+  sourceWidth > 0 ? (
+    knobScale = 32*uiScale/sourceWidth;
+    gfx_x = knobLeft*uiScale;
+    gfx_y = (top-6)*uiScale;
+    disabled ? gfx_a = 0.35 : gfx_a = 1;
+    gfx_blit(0,knobScale,0);
+    gfx_a = 1;
+  ) : (
+    disabled ? (gfx_r=0.3; gfx_g=0.3; gfx_b=0.3;) :
+               (gfx_r=0.2; gfx_g=0.9; gfx_b=0.72;);
+    gfx_circle((knobLeft+16)*uiScale,(top+10)*uiScale,8*uiScale,1);
+  );
+
+  mode == 1 ? (
+    value < 0.5 ? displayText = "0 ms" :
+    value < 1.5 ? displayText = "50 ms" : displayText = "200 ms";
+  ) : mode == 2 ? (
+    displayText = strcat(sprintf(#,"%.0f",value),unit);
+  ) : (
+    displayText = strcat(sprintf(#,"%.2f",value),unit);
+  );
+  gfx_r = gfx_g = gfx_b = disabled ? 0.4 : 0.82;
+  gfx_measurestr(displayText,textWidth,textHeight);
+  gfx_x = (left+width)*uiScale;
+  gfx_y = (top+10)*uiScale-textHeight*0.5;
+  gfx_drawstr(displayText);
+  value;
+);
+
+function UiToggleConfigure(xPosition,yPosition,buttonWidth,buttonHeight,resetValue)
+(
+  this.left = xPosition;
+  this.top = yPosition;
+  this.width = buttonWidth;
+  this.height = buttonHeight;
+  this.defaultValue = resetValue;
+);
+
+function UiTogglePaint()
+instance(left,top,width,height,defaultValue,value)
+local(inside,sourceWidth,sourceHeight,imageScale)
+(
+  inside = UiInside(left,top,width,height);
+  uiLeftPressed && inside ? (
+    value = 1-value;
+    uiValueChanged = 1;
+    uiCapturedControl = -1;
+  );
+  uiRightPressed && inside ? (
+    value = defaultValue;
+    uiValueChanged = 1;
+  );
+
+  value ? (
+    gfx_getimgdim(0,sourceWidth,sourceHeight);
+    sourceWidth > 0 ? (
+      imageScale = 32*uiScale/sourceWidth;
+      gfx_x = left*uiScale;
+      gfx_y = top*uiScale;
+      gfx_blit(0,imageScale,0);
+    ) : (
+      gfx_r = 0.2; gfx_g = 0.9; gfx_b = 0.72; gfx_a = 0.9;
+      gfx_circle((left+width*0.5)*uiScale,(top+height*0.5)*uiScale,8*uiScale,1);
+    );
+  );
+  value;
+);
+
+function UiDrawGainTrace(gainDB,left,top)
+local(clamped,endX)
+(
+  clamped = Limit(gainDB,-20,20);
+  endX = left+175+clamped*8.75;
+  gainDB < 0 ? (gfx_r=0.95; gfx_g=0.3; gfx_b=0.2;) :
+               (gfx_r=0.2; gfx_g=0.85; gfx_b=0.65;);
+  gfx_a = 0.9;
+  gfx_x = (left+175)*uiScale;
+  gfx_y = (top+2)*uiScale;
+  gfx_rectto(endX*uiScale,(top+8)*uiScale);
+  gfx_r = gfx_g = gfx_b = 0.5;
+  gfx_x = (left+175)*uiScale;
+  gfx_y = top*uiScale;
+  gfx_rectto((left+176)*uiScale,(top+10)*uiScale);
+);
+
+uiScale = gfx_ext_retina > 1 && gfx_w >= 450*gfx_ext_retina-1 ? gfx_ext_retina : 1;
+uiMouseX = mouse_x/uiScale;
+uiMouseY = mouse_y/uiScale;
+uiLeftDown = (mouse_cap&1) != 0;
+uiRightDown = (mouse_cap&2) != 0;
+uiLeftPressed = uiLeftDown && !uiPreviousLeftDown;
+uiRightPressed = uiRightDown && !uiPreviousRightDown;
+uiPreviousLeftDown = uiLeftDown;
+uiPreviousRightDown = uiRightDown;
+
+gfx_r = gfx_g = gfx_b = 1;
+gfx_a = 1;
+gfx_setfont(1,"Arial",16*uiScale);
+gfx_x = gfx_y = 0;
+gfx_getimgdim(1,backgroundSourceWidth,backgroundSourceHeight);
+backgroundScale = backgroundSourceWidth > 0 ? 450*uiScale/backgroundSourceWidth : uiScale;
+gfx_blit(1,backgroundScale,0);
+
+controlTop = 90;
+
+!uiConfigured ? (
+  uiCapturedControl = -1;
+  uiInputTrim.UiRangeConfigure(90,controlTop,250,-20,20,0.25,0," dB",0);
+  uiTarget.UiRangeConfigure(90,controlTop+50,250,-46,0,0.5,-30," LUFS",0);
+  uiGateThreshold.UiRangeConfigure(90,controlTop+100,250,-80,0,1,-80," dBFS",2);
+  uiGateRelease.UiRangeConfigure(90,controlTop+150,250,20,2000,10,1400," ms",2);
+  uiOutputTrim.UiRangeConfigure(90,controlTop+200,250,-6,6,0.25,0," dB",0);
+  uiLookahead.UiRangeConfigure(90,controlTop+250,250,0,2,1,1,"",1);
+  uiLearnDuration.UiRangeConfigure(90,controlTop+300,250,5,60,1,15," s",2);
+  uiLearnInput.UiToggleConfigure(46,controlTop+339,32,32,0);
+  uiLearnRoom.UiToggleConfigure(184,controlTop+339,32,32,0);
+  uiConfig.UiToggleConfigure(312,controlTop+339,32,32,0);
+
+  uiFastAttenuation.UiRangeConfigure(111,controlTop-28,250,0,20,1,3," dB",2);
+  uiFastGain.UiRangeConfigure(111,controlTop+12,250,0,20,1,0," dB",2);
+  uiMediumAttenuation.UiRangeConfigure(111,controlTop+52,250,0,20,1,2," dB",2);
+  uiMediumGain.UiRangeConfigure(111,controlTop+92,250,0,20,1,1," dB",2);
+  uiSlowAttenuation.UiRangeConfigure(111,controlTop+132,250,0,20,1,2," dB",2);
+  uiSlowGain.UiRangeConfigure(111,controlTop+172,250,0,20,1,2," dB",2);
+  uiHPF.UiRangeConfigure(111,controlTop+212,250,0,1,0.1,0,"",0);
+  uiMediumTime.UiRangeConfigure(111,controlTop+252,250,100,1000,10,900," ms",2);
+  uiSlowTime.UiRangeConfigure(111,controlTop+292,250,500,8000,50,3300," ms",2);
+  uiConfigured = 1;
+);
+
+uiLookahead.disabled = inputLearnActive;
+uiLearnDuration.disabled = inputLearnActive;
+uiValueChanged = 0;
+
+oldInputTrimDB = inputTrimDB;
+oldTargetLUFS = targetLUFS;
+oldGateThresholdDB = gateThresholdDB;
+oldGateReleaseMS = gateReleaseMS;
+oldOutputTrimDB = outputTrimDB;
+oldLookaheadMode = lookaheadMode;
+oldLearnDurationSeconds = learnDurationSeconds;
+oldFastMaxAttenuationDB = fastMaxAttenuationDB;
+oldFastMaxGainDB = fastMaxGainDB;
+oldMediumMaxAttenuationDB = mediumMaxAttenuationDB;
+oldMediumMaxGainDB = mediumMaxGainDB;
+oldSlowMaxAttenuationDB = slowMaxAttenuationDB;
+oldSlowMaxGainDB = slowMaxGainDB;
+oldMediumTimeMS = mediumTimeMS;
+oldSlowTimeMS = slowTimeMS;
+oldHPFAmount = hpfAmount;
+oldLearnInputButton = learnInputButton;
+oldLearnRoomButton = learnRoomButton;
+
+!uiConfig.value ? (
+  inputTrimDB = uiInputTrim.UiRangePaint(1);
+  targetLUFS = uiTarget.UiRangePaint(2);
+  gateThresholdDB = uiGateThreshold.UiRangePaint(3);
+  gateReleaseMS = uiGateRelease.UiRangePaint(4);
+  outputTrimDB = uiOutputTrim.UiRangePaint(5);
+  lookaheadMode = uiLookahead.UiRangePaint(6);
+  learnDurationSeconds = uiLearnDuration.UiRangePaint(7);
+) : (
+  gfx_x = 5*uiScale;
+  gfx_y = 57*uiScale;
+  gfx_getimgdim(2,configSourceWidth,configSourceHeight);
+  configScale = configSourceWidth > 0 ? 440*uiScale/configSourceWidth : uiScale;
+  gfx_blit(2,configScale,0);
+  fastMaxAttenuationDB = uiFastAttenuation.UiRangePaint(11);
+  fastMaxGainDB = uiFastGain.UiRangePaint(12);
+  mediumMaxAttenuationDB = uiMediumAttenuation.UiRangePaint(13);
+  mediumMaxGainDB = uiMediumGain.UiRangePaint(14);
+  slowMaxAttenuationDB = uiSlowAttenuation.UiRangePaint(15);
+  slowMaxGainDB = uiSlowGain.UiRangePaint(16);
+  hpfAmount = uiHPF.UiRangePaint(17);
+  mediumTimeMS = uiMediumTime.UiRangePaint(18);
+  slowTimeMS = uiSlowTime.UiRangePaint(19);
+);
+
+learnInputButton = uiLearnInput.UiTogglePaint();
+learnRoomButton = uiLearnRoom.UiTogglePaint();
+uiConfig.UiTogglePaint();
+
+inputTrimDB != oldInputTrimDB ? slider_automate(var.inputTrimSliderMask);
+targetLUFS != oldTargetLUFS ? slider_automate(var.targetSliderMask);
+gateThresholdDB != oldGateThresholdDB ? slider_automate(var.gateThresholdSliderMask);
+gateReleaseMS != oldGateReleaseMS ? slider_automate(var.gateReleaseSliderMask);
+outputTrimDB != oldOutputTrimDB ? slider_automate(var.outputTrimSliderMask);
+lookaheadMode != oldLookaheadMode ? slider_automate(var.lookaheadSliderMask);
+learnDurationSeconds != oldLearnDurationSeconds ? slider_automate(var.learnDurationSliderMask);
+fastMaxAttenuationDB != oldFastMaxAttenuationDB ? slider_automate(var.fastAttenuationSliderMask);
+fastMaxGainDB != oldFastMaxGainDB ? slider_automate(var.fastGainSliderMask);
+mediumMaxAttenuationDB != oldMediumMaxAttenuationDB ? slider_automate(var.mediumAttenuationSliderMask);
+mediumMaxGainDB != oldMediumMaxGainDB ? slider_automate(var.mediumGainSliderMask);
+slowMaxAttenuationDB != oldSlowMaxAttenuationDB ? slider_automate(var.slowAttenuationSliderMask);
+slowMaxGainDB != oldSlowMaxGainDB ? slider_automate(var.slowGainSliderMask);
+mediumTimeMS != oldMediumTimeMS ? slider_automate(var.mediumTimeSliderMask);
+slowTimeMS != oldSlowTimeMS ? slider_automate(var.slowTimeSliderMask);
+hpfAmount != oldHPFAmount ? slider_automate(var.hpfSliderMask);
+learnInputButton != oldLearnInputButton ? slider_automate(var.learnInputSliderMask);
+learnRoomButton != oldLearnRoomButton ? slider_automate(var.learnRoomSliderMask);
+
+uiValueChanged ? ApplyParameters();
+
+meterTop = 499;
+UiDrawGainTrace(fastGainStateDB,50,meterTop);
+UiDrawGainTrace(mediumGainStateDB,50,meterTop+20);
+UiDrawGainTrace(slowGainStateDB,50,meterTop+40);
+
+relativeLoudness = outputLoudnessDB-targetLUFS;
+outputMeter.hasValue && outputLoudnessDB > -100 ? (
+  loudnessText = strcat(sprintf(#,"%.1f",outputLoudnessDB)," LUFS");
+  relativeText = strcat(sprintf(#,"%.1f",relativeLoudness)," LU");
+) : (
+  loudnessText = "INVALID";
+  relativeText = "INVALID";
+);
+
+gfx_r = 0.5; gfx_g = 1; gfx_b = 0;
+relativeLoudness > 1 ? (gfx_r=1; gfx_g=0.5; gfx_b=0;) :
+relativeLoudness < -1 ? (gfx_r=0; gfx_g=0.85; gfx_b=0.85;);
+gfx_a = 0.8;
+gfx_setfont(1,"Arial",20*uiScale,'b');
+gfx_measurestr(loudnessText,loudnessTextWidth,loudnessTextHeight);
+gfx_measurestr(relativeText,relativeTextWidth,relativeTextHeight);
+gfx_x = 165*uiScale-loudnessTextWidth*0.5;
+gfx_y = (meterTop+114)*uiScale;
+gfx_drawstr(loudnessText);
+gfx_x = 286*uiScale-relativeTextWidth*0.5;
+gfx_y = (meterTop+114)*uiScale;
+gfx_drawstr(relativeText);
+
+gfx_r = 0; gfx_g = 1; gfx_b = 1; gfx_a = 0.8;
+gfx_x = 276*uiScale;
+gfx_y = (meterTop+177)*uiScale;
+gfx_rectto((276-(1-gateBlend)*101)*uiScale,(meterTop+186)*uiScale);
+
+gfx_r = gfx_g = gfx_b = 1;
+gfx_a = 0.5;
+gfx_setfont(1,"Arial",11*uiScale);
+gfx_x = 342*uiScale;
+gfx_y = 694*uiScale;
+gfx_drawstr(buildLabel);
+
+// Learning collects accepted speech time rather than wall-clock time: this
+// makes the displayed progress match the material that will actually be used
+// to calculate the input-trim and threshold results.
+inputLearnActive ? (
+  learnDisplaySeconds = min(learnSpeechSamples/max(srate,1),learnStartDurationSeconds);
+  learnProgressText = sprintf(#,"Learning %.1fs of %.0fs",learnDisplaySeconds,learnStartDurationSeconds);
+  gfx_r = 0.35; gfx_g = 1; gfx_b = 0.78; gfx_a = 0.95;
+  gfx_setfont(1,"Arial",14*uiScale,'b');
+  gfx_x = 16*uiScale;
+  gfx_y = 694*uiScale;
+  gfx_drawstr(learnProgressText);
+) : roomLearnActive ? (
+  roomLearnDisplaySeconds = min(roomLearnSamples/max(srate,1),roomLearnRequiredSamples/max(srate,1));
+  roomLearnTargetSeconds = roomLearnRequiredSamples/max(srate,1);
+  learnProgressText = sprintf(#,"Learning %.1fs of %.1fs",roomLearnDisplaySeconds,roomLearnTargetSeconds);
+  gfx_r = 0.35; gfx_g = 1; gfx_b = 0.78; gfx_a = 0.95;
+  gfx_setfont(1,"Arial",14*uiScale,'b');
+  gfx_x = 16*uiScale;
+  gfx_y = 694*uiScale;
+  gfx_drawstr(learnProgressText);
+);

@@ -4,6 +4,13 @@ Index of the scripts currently published in this repository. The ReaPack `index.
 
 Total public scripts indexed: 78
 
+## JSFX effects
+
+| Effect | What it does | Notes |
+| --- | --- | --- |
+| `TriLevelerPro.jsfx` | Learns a voice-level target and room-tone threshold, then applies limited fast, medium and slow voice correction while preserving ambience outside speech. | Early beta; includes live learning progress. |
+| `Adaptive Reference Matcher.jsfx` | Learns a narration baseline and optionally matches it to one of 14 embedded voice-reference profiles. | Beta release. |
+
 ## Breath workflow
 
 | Script | What it does | Notes |
