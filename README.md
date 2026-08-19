@@ -12,6 +12,10 @@ Public REAPER scripts for audiobook, dialogue, and pickup workflows.
   fast, medium and slow correction, optional lookahead, speech/room-tone
   learning, a room-tone threshold learner, and an ambience-preserving path.
   This is an early beta release intended for testing.
+- **Progressive Serial Compressor** — two or three gentle, independently
+  detected compressor stages in series, with linked threshold/knee spacing,
+  staggered timing, per-stage lookahead and an optional manual stage mode.
+  This is an early beta release intended for testing.
 
 ## Install with ReaPack
 1. Open ReaPack in REAPER.
@@ -20,9 +24,9 @@ Public REAPER scripts for audiobook, dialogue, and pickup workflows.
 3. Synchronize packages.
 
 Open **Extensions > ReaPack > Browse packages**, search for **Adaptive
-Reference Matcher** or **TriLeveler Pro**, select it, choose **Install**, and
-apply the transaction. The effects will then be available in REAPER's FX browser
-as **JS: Adaptive Reference Matcher** and **JS: TriLeveler Pro**.
+Reference Matcher**, **TriLeveler Pro**, or **Progressive Serial Compressor**,
+select it, choose **Install**, and apply the transaction. The effects will then
+be available in REAPER's FX browser with the corresponding **JS:** name.
 
 ## Notes
 - Many scripts expect REAPER 7 and the SWS/S&M extension.

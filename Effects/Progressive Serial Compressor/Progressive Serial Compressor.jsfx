@@ -1,0 +1,1041 @@
+desc:Progressive Serial Compressor
+tags: dynamics compressor serial vocal speech
+author: David Winter
+version: 0.1.0
+options:maxmem=1000000
+
+/*
+  Progressive Serial Compressor
+
+  Three independently detected compressor stages connected in series.  This is
+  an original implementation: it uses a one-sided soft knee and its own
+  program-dependent release, rather than attempting to reproduce any other
+  compressor's implementation.
+
+  The native REAPER JSFX slider panel is intentionally the complete UI. There
+  is no graphics surface: regular host sliders are clearer, more familiar, and
+  preferable to a custom interface for this effect.
+*/
+
+slider1:serial_stages=3<2,3,1>Serial Compressors
+slider2:threshold_start=-12<-60,0,0.1>Threshold 1 [dB]
+slider3:threshold_step=8<0,24,0.1>Threshold Step and Knee [dB]
+slider4:common_ratio=1.5<1,10,0.05>Ratio
+slider5:common_knee=6<0,24,0.1>-Legacy linked Knee
+slider6:attack_start=2<0,500,0.1>Attack Start [ms]
+slider7:attack_step=2<-50,50,0.1>Attack Step [ms]
+slider8:precomp_start=2<0,100,0.1>Pre-comp Start [ms]
+slider9:precomp_step=-1<-100,100,0.1>Pre-comp Step [ms]
+slider10:common_release=300<0,3000,1>Release [ms]
+slider11:auto_release=1<0,1,1{Off,On}>Auto Release
+slider12:rms_smoothing=5<0,100,0.1>RMS Detector [ms]
+slider13:output_gain=0<-24,24,0.1>Output Gain [dB]
+slider14:processing_bypass=0<0,1,1{Active,Bypass}>Processing
+
+slider15:manual_stages=0<0,1,1{Linked,Manual stages}>Stage Mode
+slider16:manual_1_threshold=-12<-120,0,0.1>S1 Threshold [dB]
+slider17:manual_1_ratio=1.5<1,10,0.05>S1 Ratio
+slider18:manual_1_knee=6<0,24,0.1>S1 Knee [dB, capped]
+slider19:manual_1_attack=2<0,500,0.1>S1 Attack [ms]
+slider20:manual_1_precomp=2<0,100,0.1>S1 Pre-comp [ms]
+slider21:manual_1_release=300<0,3000,1>S1 Release [ms]
+slider22:manual_2_threshold=-20<-120,0,0.1>S2 Threshold [dB]
+slider23:manual_2_ratio=1.5<1,10,0.05>S2 Ratio
+slider24:manual_2_knee=6<0,24,0.1>S2 Knee [dB, capped]
+slider25:manual_2_attack=4<0,500,0.1>S2 Attack [ms]
+slider26:manual_2_precomp=1<0,100,0.1>S2 Pre-comp [ms]
+slider27:manual_2_release=300<0,3000,1>S2 Release [ms]
+slider28:manual_3_threshold=-28<-120,0,0.1>S3 Threshold [dB]
+slider29:manual_3_ratio=1.5<1,10,0.05>S3 Ratio
+slider30:manual_3_knee=6<0,24,0.1>S3 Knee [dB, capped]
+slider31:manual_3_attack=6<0,500,0.1>S3 Attack [ms]
+slider32:manual_3_precomp=0<0,100,0.1>S3 Pre-comp [ms]
+slider33:manual_3_release=300<0,3000,1>S3 Release [ms]
+
+slider34:debug_stage_mode=0<0,3,1{All stages,Stage 1 only,Stages 1-2,No stages}>-Debug Stages
+slider35:debug_display=0<0,1,1{Normal,Details}>-Debug Display
+
+in_pin:left input
+in_pin:right input
+out_pin:left output
+out_pin:right output
+
+@init
+
+  // This ceiling is deliberately higher than the advertised default range so
+  // all three independently delayed stages can be safely automated.
+  maximum_precomp_ms = 100;
+  db_floor = -180;
+  delay_capacity = max(8, ceil(max(srate, 1)*maximum_precomp_ms*0.001)+4);
+  monitor_delay_capacity = max(8,
+    ceil(max(srate, 1)*maximum_precomp_ms*0.003)+4);
+  delay_change_fade_length = max(16, floor(max(srate, 1)*0.002));
+
+  // Six audio rings (left/right for each independent stage), followed by a
+  // two-channel monitor ring used only to align the live graph's input point.
+  stage1_left_base = 0;
+  stage1_right_base = stage1_left_base + delay_capacity;
+  stage2_left_base = stage1_right_base + delay_capacity;
+  stage2_right_base = stage2_left_base + delay_capacity;
+  stage3_left_base = stage2_right_base + delay_capacity;
+  stage3_right_base = stage3_left_base + delay_capacity;
+  monitor_left_base = stage3_right_base + delay_capacity;
+  monitor_right_base = monitor_left_base + monitor_delay_capacity;
+  total_memory_samples = monitor_right_base + monitor_delay_capacity;
+  memset(0, 0, total_memory_samples);
+
+  ext_tail_size = -1;
+  ext_gr_meter = 0;
+  gfx_ext_retina = 1;
+
+  function PSCClamp(value, lower_bound, upper_bound)
+  (
+    min(upper_bound, max(lower_bound, value));
+  );
+
+  function DBToAmplitude(value_db)
+  (
+    10^(value_db*0.05);
+  );
+
+  function AmplitudeToDB(value)
+  (
+    20*log10(max(abs(value), 0.000000000001));
+  );
+
+  // Returns an EMA step that leaves 1% of an error after milliseconds.
+  function OnePercentStep(milliseconds)
+  local(samples)
+  global(srate)
+  (
+    milliseconds <= 0.0001 ? 1 : (
+      samples = max(milliseconds*0.001*max(srate, 1), 0.0001);
+      PSCClamp(1-exp(log(0.01)/samples), 0, 1);
+    );
+  );
+
+  /*
+    One-sided soft knee.  Below threshold it is exactly unity.  Across the
+    next knee dB, gain reduction follows 2u^2-u^3: both the reduction and its
+    slope begin at zero, then meet the full-ratio line continuously at u = 1.
+  */
+  function StageTransfer(input_db, threshold_db, ratio_value, knee_db)
+  local(over_db, knee_fraction, compression_slope, reduction_db)
+  (
+    ratio_value = max(1, ratio_value);
+    over_db = input_db-threshold_db;
+    over_db <= 0 ? input_db :
+    knee_db <= 0.000001 ? threshold_db+over_db/ratio_value :
+    over_db >= knee_db ? threshold_db+over_db/ratio_value : (
+      knee_fraction = over_db/knee_db;
+      compression_slope = 1-1/ratio_value;
+      reduction_db = compression_slope*knee_db*
+        (2*knee_fraction*knee_fraction-
+          knee_fraction*knee_fraction*knee_fraction);
+      input_db-reduction_db;
+    );
+  );
+
+  function AggregateTransfer(input_db)
+  local(output_db)
+  global(stage1_active, stage2_active, stage3_active,
+    stage1_threshold, stage2_threshold, stage3_threshold,
+    stage1_ratio, stage2_ratio, stage3_ratio,
+    stage1_knee, stage2_knee, stage3_knee)
+  (
+    output_db = input_db;
+    stage1_active ? output_db = StageTransfer(output_db,
+      stage1_threshold, stage1_ratio, stage1_knee);
+    stage2_active ? output_db = StageTransfer(output_db,
+      stage2_threshold, stage2_ratio, stage2_knee);
+    stage3_active ? output_db = StageTransfer(output_db,
+      stage3_threshold, stage3_ratio, stage3_knee);
+    output_db;
+  );
+
+  function StageInitialise(left_base, right_base, capacity)
+  instance(delay_left_base, delay_right_base, delay_capacity, delay_samples,
+    previous_delay_samples, delay_crossfade_remaining, delay_write,
+    detector_power, detector_db, target_reduction_db, gain_reduction_db,
+    program_reduction_db, effective_release_ms, attack_step, release_ms,
+    threshold_db, ratio_value, knee_db, output_left, output_right)
+  global(db_floor)
+  (
+    delay_left_base = left_base;
+    delay_right_base = right_base;
+    delay_capacity = capacity;
+    delay_samples = previous_delay_samples = delay_crossfade_remaining = 0;
+    delay_write = 0;
+    detector_power = 0;
+    detector_db = db_floor;
+    target_reduction_db = gain_reduction_db = program_reduction_db = 0;
+    effective_release_ms = 0;
+    attack_step = 1;
+    release_ms = 200;
+    threshold_db = -12;
+    ratio_value = 1;
+    knee_db = 0;
+    output_left = output_right = 0;
+  );
+
+  // The delay buffers are always allocated at their maximum size.  Changes
+  // therefore never resize or invalidate storage; a 2 ms crossfade prevents a
+  // delay-time automation change from creating a click.
+  function StageConfigure(new_threshold_db, new_ratio_value, new_knee_db,
+    new_attack_ms, new_precomp_ms, new_release_ms)
+  instance(delay_capacity, delay_samples, previous_delay_samples,
+    delay_crossfade_remaining, threshold_db, ratio_value, knee_db,
+    attack_step, release_ms)
+  local(new_delay_samples)
+  global(srate, maximum_precomp_ms, delay_change_fade_length,
+    delay_transitions_enabled)
+  (
+    threshold_db = new_threshold_db;
+    ratio_value = PSCClamp(new_ratio_value, 1, 10);
+    // A one-sided knee begins at threshold. Do not let its end extend past
+    // 0 dBFS, even if a parameter is automated or written externally.
+    knee_db = PSCClamp(new_knee_db, 0, max(0, -new_threshold_db));
+    attack_step = OnePercentStep(PSCClamp(new_attack_ms, 0, 500));
+    release_ms = PSCClamp(new_release_ms, 0, 3000);
+    new_delay_samples = floor(PSCClamp(new_precomp_ms, 0,
+      maximum_precomp_ms)*0.001*max(srate, 1)+0.5);
+    new_delay_samples = PSCClamp(new_delay_samples, 0, delay_capacity-2);
+
+    new_delay_samples != delay_samples ? (
+      previous_delay_samples = delay_samples;
+      delay_samples = new_delay_samples;
+      delay_crossfade_remaining = delay_transitions_enabled ?
+        delay_change_fade_length : 0;
+    );
+  );
+
+  function StageProcess(input_left, input_right, enabled)
+  instance(delay_left_base, delay_right_base, delay_capacity, delay_samples,
+    previous_delay_samples, delay_crossfade_remaining, delay_write,
+    detector_power, detector_db, target_reduction_db, gain_reduction_db,
+    program_reduction_db, effective_release_ms, attack_step, release_ms,
+    threshold_db, ratio_value, knee_db, output_left, output_right)
+  local(input_power, desired_reduction_db, release_step, applied_gain,
+    new_read_index, old_read_index, new_left, new_right, old_left, old_right,
+    delayed_left, delayed_right, fade_fraction)
+  global(detector_step, program_step, auto_release,
+    delay_change_fade_length)
+  (
+    // Linked stereo detection uses the larger channel energy, preserving image.
+    input_power = max(input_left*input_left, input_right*input_right);
+    detector_step >= 0.999999 ? detector_power = input_power :
+      detector_power += detector_step*(input_power-detector_power);
+    detector_power = max(0, detector_power);
+    detector_db = AmplitudeToDB(sqrt(detector_power));
+
+    enabled ? desired_reduction_db = max(0, detector_db-
+      StageTransfer(detector_db, threshold_db, ratio_value, knee_db)) :
+      desired_reduction_db = 0;
+    target_reduction_db = desired_reduction_db;
+
+    // A medium-time history gives deep/sustained reduction a longer release,
+    // while a brief light peak returns sooner.  The common Release slider is
+    // still the reference scale in both Auto Release modes.
+    program_reduction_db += program_step*
+      (desired_reduction_db-program_reduction_db);
+    program_reduction_db = PSCClamp(program_reduction_db, 0, 120);
+    effective_release_ms = release_ms;
+    auto_release >= 0.5 ? (
+      effective_release_ms *= 0.60+min(1.40,
+        (gain_reduction_db+program_reduction_db)/12);
+    );
+
+    desired_reduction_db > gain_reduction_db ? (
+      gain_reduction_db += attack_step*
+        (desired_reduction_db-gain_reduction_db);
+    ) : (
+      release_step = OnePercentStep(effective_release_ms);
+      gain_reduction_db += release_step*
+        (desired_reduction_db-gain_reduction_db);
+    );
+    gain_reduction_db = PSCClamp(gain_reduction_db, 0, 120);
+
+    // Write before reading: a zero-sample pre-comp delay is a true zero delay.
+    delay_left_base[delay_write] = input_left;
+    delay_right_base[delay_write] = input_right;
+    new_read_index = delay_write-delay_samples;
+    new_read_index < 0 ? new_read_index += delay_capacity;
+    new_left = delay_left_base[new_read_index];
+    new_right = delay_right_base[new_read_index];
+
+    delay_crossfade_remaining > 0 ? (
+      old_read_index = delay_write-previous_delay_samples;
+      old_read_index < 0 ? old_read_index += delay_capacity;
+      old_left = delay_left_base[old_read_index];
+      old_right = delay_right_base[old_read_index];
+      fade_fraction = 1-delay_crossfade_remaining/
+        max(1, delay_change_fade_length);
+      delayed_left = old_left+(new_left-old_left)*fade_fraction;
+      delayed_right = old_right+(new_right-old_right)*fade_fraction;
+      delay_crossfade_remaining -= 1;
+    ) : (
+      delayed_left = new_left;
+      delayed_right = new_right;
+    );
+
+    delay_write += 1;
+    delay_write >= delay_capacity ? delay_write = 0;
+    applied_gain = enabled ? DBToAmplitude(-gain_reduction_db) : 1;
+    output_left = delayed_left*applied_gain;
+    output_right = delayed_right*applied_gain;
+  );
+
+  function GenerateLinkedParameters()
+  global(threshold_start, threshold_step, common_ratio,
+    attack_start, attack_step, precomp_start, precomp_step, common_release,
+    linked_1_threshold, linked_2_threshold, linked_3_threshold,
+    linked_1_ratio, linked_2_ratio, linked_3_ratio,
+    linked_1_knee, linked_2_knee, linked_3_knee,
+    linked_1_attack, linked_2_attack, linked_3_attack,
+    linked_1_precomp, linked_2_precomp, linked_3_precomp,
+    linked_1_release, linked_2_release, linked_3_release,
+    maximum_precomp_ms)
+  (
+    linked_1_threshold = threshold_start;
+    linked_2_threshold = threshold_start-threshold_step;
+    linked_3_threshold = threshold_start-2*threshold_step;
+    linked_1_ratio = linked_2_ratio = linked_3_ratio = common_ratio;
+    // In Linked mode, the threshold spacing is also the knee width. This makes
+    // S2 and S3 reach full ratio at the next higher stage's threshold. Each
+    // knee remains capped by its own threshold so it cannot extend past 0 dBFS.
+    linked_1_knee = PSCClamp(threshold_step, 0, max(0, -linked_1_threshold));
+    linked_2_knee = PSCClamp(threshold_step, 0, max(0, -linked_2_threshold));
+    linked_3_knee = PSCClamp(threshold_step, 0, max(0, -linked_3_threshold));
+    linked_1_attack = PSCClamp(attack_start, 0, 500);
+    linked_2_attack = PSCClamp(attack_start+attack_step, 0, 500);
+    linked_3_attack = PSCClamp(attack_start+2*attack_step, 0, 500);
+    linked_1_precomp = PSCClamp(precomp_start, 0, maximum_precomp_ms);
+    linked_2_precomp = PSCClamp(precomp_start+precomp_step, 0,
+      maximum_precomp_ms);
+    linked_3_precomp = PSCClamp(precomp_start+2*precomp_step, 0,
+      maximum_precomp_ms);
+    linked_1_release = linked_2_release = linked_3_release = common_release;
+  );
+
+  function CopyLinkedValuesToManual()
+  local(changed_low, changed_31, changed_32)
+  global(linked_1_threshold, linked_2_threshold, linked_3_threshold,
+    linked_1_ratio, linked_2_ratio, linked_3_ratio,
+    linked_1_knee, linked_2_knee, linked_3_knee,
+    linked_1_attack, linked_2_attack, linked_3_attack,
+    linked_1_precomp, linked_2_precomp, linked_3_precomp,
+    linked_1_release, linked_2_release, linked_3_release,
+    manual_1_threshold, manual_2_threshold, manual_3_threshold,
+    manual_1_ratio, manual_2_ratio, manual_3_ratio,
+    manual_1_knee, manual_2_knee, manual_3_knee,
+    manual_1_attack, manual_2_attack, manual_3_attack,
+    manual_1_precomp, manual_2_precomp, manual_3_precomp,
+    manual_1_release, manual_2_release, manual_3_release)
+  (
+    // In Linked mode these are visible readouts, so they must always reflect
+    // the generated values. Only notify REAPER for values that actually moved;
+    // this avoids a redundant @slider pass on every audio-block update.
+    changed_low = changed_31 = changed_32 = 0;
+    abs(manual_1_threshold-linked_1_threshold) > 0.000001 ? (
+      manual_1_threshold = linked_1_threshold; changed_low += 2^15;
+    );
+    abs(manual_1_ratio-linked_1_ratio) > 0.000001 ? (
+      manual_1_ratio = linked_1_ratio; changed_low += 2^16;
+    );
+    abs(manual_1_knee-linked_1_knee) > 0.000001 ? (
+      manual_1_knee = linked_1_knee; changed_low += 2^17;
+    );
+    abs(manual_1_attack-linked_1_attack) > 0.000001 ? (
+      manual_1_attack = linked_1_attack; changed_low += 2^18;
+    );
+    abs(manual_1_precomp-linked_1_precomp) > 0.000001 ? (
+      manual_1_precomp = linked_1_precomp; changed_low += 2^19;
+    );
+    abs(manual_1_release-linked_1_release) > 0.000001 ? (
+      manual_1_release = linked_1_release; changed_low += 2^20;
+    );
+    abs(manual_2_threshold-linked_2_threshold) > 0.000001 ? (
+      manual_2_threshold = linked_2_threshold; changed_low += 2^21;
+    );
+    abs(manual_2_ratio-linked_2_ratio) > 0.000001 ? (
+      manual_2_ratio = linked_2_ratio; changed_low += 2^22;
+    );
+    abs(manual_2_knee-linked_2_knee) > 0.000001 ? (
+      manual_2_knee = linked_2_knee; changed_low += 2^23;
+    );
+    abs(manual_2_attack-linked_2_attack) > 0.000001 ? (
+      manual_2_attack = linked_2_attack; changed_low += 2^24;
+    );
+    abs(manual_2_precomp-linked_2_precomp) > 0.000001 ? (
+      manual_2_precomp = linked_2_precomp; changed_low += 2^25;
+    );
+    abs(manual_2_release-linked_2_release) > 0.000001 ? (
+      manual_2_release = linked_2_release; changed_low += 2^26;
+    );
+    abs(manual_3_threshold-linked_3_threshold) > 0.000001 ? (
+      manual_3_threshold = linked_3_threshold; changed_low += 2^27;
+    );
+    abs(manual_3_ratio-linked_3_ratio) > 0.000001 ? (
+      manual_3_ratio = linked_3_ratio; changed_low += 2^28;
+    );
+    abs(manual_3_knee-linked_3_knee) > 0.000001 ? (
+      manual_3_knee = linked_3_knee; changed_low += 2^29;
+    );
+    abs(manual_3_attack-linked_3_attack) > 0.000001 ? (
+      manual_3_attack = linked_3_attack; changed_low += 2^30;
+    );
+    abs(manual_3_precomp-linked_3_precomp) > 0.000001 ? (
+      manual_3_precomp = linked_3_precomp; changed_31 = 1;
+    );
+    abs(manual_3_release-linked_3_release) > 0.000001 ? (
+      manual_3_release = linked_3_release; changed_32 = 1;
+    );
+    changed_low ? sliderchange(changed_low);
+    changed_31 ? sliderchange(2^31);
+    changed_32 ? sliderchange(2^32);
+  );
+
+  function ApplyParameters()
+  (
+    serial_stages = PSCClamp(floor(serial_stages+0.5), 2, 3);
+    GenerateLinkedParameters();
+    manual_stages < 0.5 ? CopyLinkedValuesToManual();
+
+    manual_stages >= 0.5 ? (
+      manual_1_knee = PSCClamp(manual_1_knee, 0, max(0, -manual_1_threshold));
+      manual_2_knee = PSCClamp(manual_2_knee, 0, max(0, -manual_2_threshold));
+      manual_3_knee = PSCClamp(manual_3_knee, 0, max(0, -manual_3_threshold));
+      stage1_threshold = manual_1_threshold;
+      stage2_threshold = manual_2_threshold;
+      stage3_threshold = manual_3_threshold;
+      stage1_ratio = manual_1_ratio;
+      stage2_ratio = manual_2_ratio;
+      stage3_ratio = manual_3_ratio;
+      stage1_knee = manual_1_knee;
+      stage2_knee = manual_2_knee;
+      stage3_knee = manual_3_knee;
+      stage1_attack = manual_1_attack;
+      stage2_attack = manual_2_attack;
+      stage3_attack = manual_3_attack;
+      stage1_precomp = manual_1_precomp;
+      stage2_precomp = manual_2_precomp;
+      stage3_precomp = manual_3_precomp;
+      stage1_release = manual_1_release;
+      stage2_release = manual_2_release;
+      stage3_release = manual_3_release;
+    ) : (
+      stage1_threshold = linked_1_threshold;
+      stage2_threshold = linked_2_threshold;
+      stage3_threshold = linked_3_threshold;
+      stage1_ratio = linked_1_ratio;
+      stage2_ratio = linked_2_ratio;
+      stage3_ratio = linked_3_ratio;
+      stage1_knee = linked_1_knee;
+      stage2_knee = linked_2_knee;
+      stage3_knee = linked_3_knee;
+      stage1_attack = linked_1_attack;
+      stage2_attack = linked_2_attack;
+      stage3_attack = linked_3_attack;
+      stage1_precomp = linked_1_precomp;
+      stage2_precomp = linked_2_precomp;
+      stage3_precomp = linked_3_precomp;
+      stage1_release = linked_1_release;
+      stage2_release = linked_2_release;
+      stage3_release = linked_3_release;
+    );
+
+    stage1.StageConfigure(stage1_threshold, stage1_ratio, stage1_knee,
+      stage1_attack, stage1_precomp, stage1_release);
+    stage2.StageConfigure(stage2_threshold, stage2_ratio, stage2_knee,
+      stage2_attack, stage2_precomp, stage2_release);
+    stage3.StageConfigure(stage3_threshold, stage3_ratio, stage3_knee,
+      stage3_attack, stage3_precomp, stage3_release);
+
+    // Debug modes deliberately preserve the stage delay path, so static tests
+    // can compare exactly aligned output while selectively disabling gain.
+    stage1_active = processing_bypass < 0.5 && debug_stage_mode < 3 ? 1 : 0;
+    stage2_active = processing_bypass < 0.5 && debug_stage_mode < 2 ? 1 : 0;
+    stage3_active = serial_stages >= 3 && processing_bypass < 0.5 &&
+      debug_stage_mode < 1 ? 1 : 0;
+    detector_step = OnePercentStep(PSCClamp(rms_smoothing, 0, 100));
+    program_step = OnePercentStep(125);
+    output_gain_step = OnePercentStep(5);
+    output_gain_target = processing_bypass >= 0.5 ? 1 :
+      DBToAmplitude(output_gain);
+
+    total_delay_samples = stage1.delay_samples+stage2.delay_samples;
+    serial_stages >= 3 ? total_delay_samples += stage3.delay_samples;
+    pdc_delay = total_delay_samples;
+    pdc_bot_ch = 0;
+    pdc_top_ch = 2;
+    ext_tail_size = total_delay_samples;
+    last_manual_stages = manual_stages;
+  );
+
+  stage1.StageInitialise(stage1_left_base, stage1_right_base, delay_capacity);
+  stage2.StageInitialise(stage2_left_base, stage2_right_base, delay_capacity);
+  stage3.StageInitialise(stage3_left_base, stage3_right_base, delay_capacity);
+  monitor_write = 0;
+  live_actual_input_db = db_floor;
+  live_actual_output_db = db_floor;
+  live_static_input_db = db_floor;
+  live_static_output_db = db_floor;
+  meter_stage1_db = meter_stage2_db = meter_stage3_db = 0;
+  meter_total_db = 0;
+  ui_page = 0;
+  ui_mouse_was_down = 0;
+  delay_transitions_enabled = 0;
+  last_manual_stages = manual_stages;
+  ApplyParameters();
+  delay_transitions_enabled = 1;
+  output_gain_smoothed = output_gain_target;
+
+@slider
+
+  ApplyParameters();
+
+@block
+
+  // Keep PDC current for slider automation as well as explicit slider changes.
+  pdc_delay = total_delay_samples;
+  pdc_bot_ch = 0;
+  pdc_top_ch = 2;
+  ext_tail_size = total_delay_samples;
+  ext_gr_meter = -meter_total_db;
+
+@sample
+
+  input_left = spl0;
+  input_right = spl1;
+
+  // Align the graph's dynamic input point with the serially delayed output.
+  monitor_left_base[monitor_write] = input_left;
+  monitor_right_base[monitor_write] = input_right;
+  monitor_read = monitor_write-total_delay_samples;
+  monitor_read < 0 ? monitor_read += monitor_delay_capacity;
+  monitor_delayed_left = monitor_left_base[monitor_read];
+  monitor_delayed_right = monitor_right_base[monitor_read];
+  monitor_write += 1;
+  monitor_write >= monitor_delay_capacity ? monitor_write = 0;
+
+  stage1.StageProcess(input_left, input_right, stage1_active);
+  stage2.StageProcess(stage1.output_left, stage1.output_right, stage2_active);
+  serial_stages >= 3 ? (
+    stage3.StageProcess(stage2.output_left, stage2.output_right, stage3_active);
+    compressor_output_left = stage3.output_left;
+    compressor_output_right = stage3.output_right;
+  ) : (
+    compressor_output_left = stage2.output_left;
+    compressor_output_right = stage2.output_right;
+  );
+
+  output_gain_smoothed += output_gain_step*
+    (output_gain_target-output_gain_smoothed);
+  spl0 = compressor_output_left*output_gain_smoothed;
+  spl1 = compressor_output_right*output_gain_smoothed;
+
+  meter_stage1_db = stage1_active ? stage1.gain_reduction_db : 0;
+  meter_stage2_db = stage2_active ? stage2.gain_reduction_db : 0;
+  meter_stage3_db = stage3_active ? stage3.gain_reduction_db : 0;
+  meter_total_db = meter_stage1_db+meter_stage2_db+meter_stage3_db;
+  live_static_input_db = stage1.detector_db;
+  live_static_output_db = AggregateTransfer(live_static_input_db);
+  live_actual_input_db = AmplitudeToDB(max(abs(monitor_delayed_left),
+    abs(monitor_delayed_right)));
+  // The graph deliberately excludes Output Gain: it displays compression only.
+  live_actual_output_db = AmplitudeToDB(max(abs(compressor_output_left),
+    abs(compressor_output_right)));
+
+/*
+  Legacy graphics UI intentionally disabled. The native REAPER slider panel
+  above is the only active control surface.
+  function DrawRange(slider_number, value, lower_bound, upper_bound,
+    increment, x, y, width, enabled)
+  instance(dragging)
+  local(normalised, new_value, thumb_x, active_alpha)
+  (
+    enabled = enabled >= 0.5;
+    (ui_mouse_pressed && enabled && mouse_x >= x && mouse_x <= x+width &&
+      mouse_y >= y-6*gfx_scale && mouse_y <= y+18*gfx_scale) ? dragging = 1;
+    !ui_mouse_down ? dragging = 0;
+    dragging && ui_mouse_down ? (
+      normalised = PSCClamp((mouse_x-x)/max(width, 1), 0, 1);
+      new_value = lower_bound+normalised*(upper_bound-lower_bound);
+      new_value = lower_bound+floor((new_value-lower_bound)/increment+0.5)*
+        increment;
+      new_value = PSCClamp(new_value, lower_bound, upper_bound);
+      abs(new_value-value) > 0.0000001 ? (
+        value = new_value;
+        ui_parameter_change_mask += 2^(slider_number-1);
+      );
+    );
+
+    active_alpha = enabled ? 1 : 0.35;
+    normalised = PSCClamp((value-lower_bound)/max(upper_bound-lower_bound,
+      0.000001), 0, 1);
+    thumb_x = x+normalised*width;
+    gfx_set(0.17, 0.20, 0.21, active_alpha);
+    gfx_rect(x, y, width, 3*gfx_scale, 1);
+    gfx_set(0.48, 0.76, 0.69, active_alpha);
+    gfx_rect(x, y, max(1, thumb_x-x), 3*gfx_scale, 1);
+    gfx_set(0.89, 0.93, 0.92, active_alpha);
+    gfx_circle(thumb_x, y+1.5*gfx_scale, 4*gfx_scale, 1);
+    gfx_set(0.72, 0.78, 0.77, active_alpha);
+    sprintf(#ui_range_value, "%.1f", value);
+    gfx_x = x;
+    gfx_y = y+8*gfx_scale;
+    gfx_drawstr(#ui_range_value);
+    value;
+  );
+
+  function DrawToggle(slider_number, value, x, y, width, enabled)
+  local(active_alpha)
+  (
+    enabled = enabled >= 0.5;
+    (ui_mouse_pressed && enabled && mouse_x >= x && mouse_x <= x+width &&
+      mouse_y >= y && mouse_y <= y+16*gfx_scale) ? (
+      value = value >= 0.5 ? 0 : 1;
+      ui_parameter_change_mask += 2^(slider_number-1);
+    );
+    active_alpha = enabled ? 1 : 0.35;
+    value >= 0.5 ? gfx_set(0.24, 0.57, 0.48, active_alpha) :
+      gfx_set(0.16, 0.19, 0.20, active_alpha);
+    gfx_rect(x, y, width, 16*gfx_scale, 1);
+    gfx_set(0.46, 0.70, 0.64, active_alpha);
+    gfx_rect(x, y, width, 16*gfx_scale, 0);
+    gfx_set(0.91, 0.94, 0.93, active_alpha);
+    gfx_x = x+5*gfx_scale;
+    gfx_y = y+3*gfx_scale;
+    value >= 0.5 ? gfx_drawstr("On") : gfx_drawstr("Off");
+    value;
+  );
+
+  function GraphX(db_value)
+  global(graph_left, graph_width, graph_min_db, graph_max_db)
+  (
+    graph_left+PSCClamp((db_value-graph_min_db)/max(graph_max_db-graph_min_db,
+      0.000001), 0, 1)*graph_width;
+  );
+
+  function GraphY(db_value)
+  global(graph_top, graph_height, graph_min_db, graph_max_db)
+  (
+    graph_top+(1-PSCClamp((db_value-graph_min_db)/max(graph_max_db-graph_min_db,
+      0.000001), 0, 1))*graph_height;
+  );
+
+  function DrawStandaloneCurve(threshold_db, ratio_value, knee_value,
+    enabled, red, green, blue)
+  local(index, input_db, output_db, previous_x, previous_y, current_x, current_y)
+  (
+    gfx_set(red, green, blue, enabled ? 0.72 : 0.20);
+    input_db = graph_min_db;
+    output_db = enabled ? StageTransfer(input_db, threshold_db, ratio_value,
+      knee_value) : input_db;
+    previous_x = GraphX(input_db);
+    previous_y = GraphY(output_db);
+    index = 1;
+    loop(240,
+      input_db = graph_min_db+index/240*(graph_max_db-graph_min_db);
+      output_db = enabled ? StageTransfer(input_db, threshold_db, ratio_value,
+        knee_value) : input_db;
+      current_x = GraphX(input_db);
+      current_y = GraphY(output_db);
+      gfx_line(previous_x, previous_y, current_x, current_y);
+      previous_x = current_x;
+      previous_y = current_y;
+      index += 1;
+    );
+  );
+
+  function DrawAggregateCurve()
+  local(index, input_db, output_db, previous_x, previous_y, current_x, current_y)
+  (
+    gfx_set(0.27, 0.92, 0.61, 1);
+    input_db = graph_min_db;
+    output_db = AggregateTransfer(input_db);
+    previous_x = GraphX(input_db);
+    previous_y = GraphY(output_db);
+    index = 1;
+    loop(240,
+      input_db = graph_min_db+index/240*(graph_max_db-graph_min_db);
+      output_db = AggregateTransfer(input_db);
+      current_x = GraphX(input_db);
+      current_y = GraphY(output_db);
+      gfx_line(previous_x, previous_y, current_x, current_y);
+      previous_x = current_x;
+      previous_y = current_y;
+      index += 1;
+    );
+  );
+
+  function DrawKneeMarkers(threshold_db, ratio_value, knee_value,
+    enabled, red, green, blue)
+  local(start_x, start_y, end_x, end_y)
+  (
+    enabled ? (
+      start_x = GraphX(threshold_db);
+      start_y = GraphY(StageTransfer(threshold_db, threshold_db, ratio_value,
+        knee_value));
+      end_x = GraphX(threshold_db+knee_value);
+      end_y = GraphY(StageTransfer(threshold_db+knee_value, threshold_db,
+        ratio_value, knee_value));
+      gfx_set(red, green, blue, 0.30);
+      gfx_line(start_x, graph_top, start_x, graph_bottom);
+      knee_value > 0.000001 ? gfx_line(end_x, graph_top, end_x, graph_bottom);
+      gfx_set(red, green, blue, 1);
+      gfx_circle(start_x, start_y, 3.2*gfx_scale, 1);
+      knee_value > 0.000001 ? gfx_circle(end_x, end_y, 3.2*gfx_scale, 1);
+    );
+  );
+
+  function DrawGainMeter(reduction_db, x, y, width, height, red, green, blue)
+  local(fill_height)
+  (
+    fill_height = PSCClamp(reduction_db/24, 0, 1)*height;
+    gfx_set(0.065, 0.080, 0.085, 1);
+    gfx_rect(x, y, width, height, 1);
+    gfx_set(red, green, blue, 0.92);
+    gfx_rect(x, y+height-fill_height, width, fill_height, 1);
+    gfx_set(0.42, 0.49, 0.48, 1);
+    gfx_rect(x, y, width, height, 0);
+  );
+
+  gfx_scale = gfx_ext_retina > 1 ? gfx_ext_retina : 1;
+  gfx_set(0.035, 0.045, 0.050, 1);
+  gfx_rect(0, 0, gfx_w, gfx_h, 1);
+  gfx_setfont(0, "Arial", 9*gfx_scale);
+
+  ui_mouse_down = mouse_cap&1;
+  ui_mouse_pressed = ui_mouse_down && ui_mouse_was_down < 0.5;
+  ui_parameter_change_mask = 0;
+  ui_margin = 18*gfx_scale;
+  ui_gap = 12*gfx_scale;
+  ui_column_width = max(90*gfx_scale,
+    (gfx_w-2*ui_margin-3*ui_gap)/4);
+  ui_column_1 = ui_margin;
+  ui_column_2 = ui_column_1+ui_column_width+ui_gap;
+  ui_column_3 = ui_column_2+ui_column_width+ui_gap;
+  ui_column_4 = ui_column_3+ui_column_width+ui_gap;
+
+  gfx_setfont(0, "Arial", 12*gfx_scale, 'b');
+  gfx_set(0.89, 0.93, 0.92, 1);
+  gfx_x = ui_margin;
+  gfx_y = 7*gfx_scale;
+  gfx_drawstr("Progressive Serial Compressor");
+  gfx_setfont(0, "Arial", 9*gfx_scale);
+
+  // Simple page selectors; the regular linked controls remain the first page.
+  ui_tab_y = 25*gfx_scale;
+  ui_tab_width = 122*gfx_scale;
+  (ui_mouse_pressed && mouse_x >= ui_margin && mouse_x <= ui_margin+ui_tab_width &&
+    mouse_y >= ui_tab_y && mouse_y <= ui_tab_y+16*gfx_scale) ? ui_page = 0;
+  gfx_set(ui_page == 0 ? 0.24 : 0.13, ui_page == 0 ? 0.56 : 0.17,
+    ui_page == 0 ? 0.48 : 0.18, 1);
+  gfx_rect(ui_margin, ui_tab_y, ui_tab_width, 16*gfx_scale, 1);
+  gfx_set(0.88, 0.92, 0.91, 1);
+  gfx_x = ui_margin+6*gfx_scale;
+  gfx_y = ui_tab_y+3*gfx_scale;
+  gfx_drawstr("Linked controls");
+
+  ui_advanced_x = ui_margin+ui_tab_width+6*gfx_scale;
+  (ui_mouse_pressed && mouse_x >= ui_advanced_x &&
+    mouse_x <= ui_advanced_x+ui_tab_width && mouse_y >= ui_tab_y &&
+    mouse_y <= ui_tab_y+16*gfx_scale) ? ui_page = 1;
+  gfx_set(ui_page == 1 ? 0.24 : 0.13, ui_page == 1 ? 0.56 : 0.17,
+    ui_page == 1 ? 0.48 : 0.18, 1);
+  gfx_rect(ui_advanced_x, ui_tab_y, ui_tab_width, 16*gfx_scale, 1);
+  gfx_set(0.88, 0.92, 0.91, 1);
+  gfx_x = ui_advanced_x+6*gfx_scale;
+  gfx_y = ui_tab_y+3*gfx_scale;
+  gfx_drawstr("Manual stages");
+
+  ui_page < 0.5 ? (
+    ui_label_y_1 = 49*gfx_scale;
+    ui_label_y_2 = 96*gfx_scale;
+    ui_label_y_3 = 143*gfx_scale;
+    ui_track_y_1 = ui_label_y_1+13*gfx_scale;
+    ui_track_y_2 = ui_label_y_2+13*gfx_scale;
+    ui_track_y_3 = ui_label_y_3+13*gfx_scale;
+
+    gfx_set(0.74, 0.79, 0.78, 1);
+    gfx_x = ui_column_1; gfx_y = ui_label_y_1; gfx_drawstr("Threshold 1 [dB]");
+    threshold_start = ui_threshold_start.DrawRange(1, threshold_start, -60, 0,
+      0.1, ui_column_1, ui_track_y_1, ui_column_width, 1);
+    gfx_x = ui_column_2; gfx_y = ui_label_y_1; gfx_drawstr("Threshold Step [dB]");
+    threshold_step = ui_threshold_step.DrawRange(2, threshold_step, 0, 24,
+      0.1, ui_column_2, ui_track_y_1, ui_column_width, 1);
+    gfx_x = ui_column_3; gfx_y = ui_label_y_1; gfx_drawstr("Ratio");
+    common_ratio = ui_common_ratio.DrawRange(3, common_ratio, 1, 10, 0.05,
+      ui_column_3, ui_track_y_1, ui_column_width, 1);
+    gfx_x = ui_column_4; gfx_y = ui_label_y_1; gfx_drawstr("Knee [dB]");
+    common_knee = ui_common_knee.DrawRange(4, common_knee, 0, 24, 0.1,
+      ui_column_4, ui_track_y_1, ui_column_width, 1);
+
+    gfx_x = ui_column_1; gfx_y = ui_label_y_2; gfx_drawstr("Attack Start [ms]");
+    attack_start = ui_attack_start.DrawRange(5, attack_start, 0, 500, 0.1,
+      ui_column_1, ui_track_y_2, ui_column_width, 1);
+    gfx_x = ui_column_2; gfx_y = ui_label_y_2; gfx_drawstr("Attack Step [ms]");
+    attack_step = ui_attack_step.DrawRange(6, attack_step, -50, 50, 0.1,
+      ui_column_2, ui_track_y_2, ui_column_width, 1);
+    gfx_x = ui_column_3; gfx_y = ui_label_y_2; gfx_drawstr("Pre-comp Start [ms]");
+    precomp_start = ui_precomp_start.DrawRange(7, precomp_start, 0, 100, 0.1,
+      ui_column_3, ui_track_y_2, ui_column_width, 1);
+    gfx_x = ui_column_4; gfx_y = ui_label_y_2; gfx_drawstr("Pre-comp Step [ms]");
+    precomp_step = ui_precomp_step.DrawRange(8, precomp_step, -100, 100, 0.1,
+      ui_column_4, ui_track_y_2, ui_column_width, 1);
+
+    gfx_x = ui_column_1; gfx_y = ui_label_y_3; gfx_drawstr("Release [ms]");
+    common_release = ui_common_release.DrawRange(9, common_release, 0, 3000, 1,
+      ui_column_1, ui_track_y_3, ui_column_width, 1);
+    gfx_x = ui_column_2; gfx_y = ui_label_y_3; gfx_drawstr("RMS Detector [ms]");
+    rms_smoothing = ui_rms_smoothing.DrawRange(11, rms_smoothing, 0, 100, 0.1,
+      ui_column_2, ui_track_y_3, ui_column_width, 1);
+    gfx_x = ui_column_3; gfx_y = ui_label_y_3; gfx_drawstr("Output Gain [dB]");
+    output_gain = ui_output_gain.DrawRange(12, output_gain, -24, 24, 0.1,
+      ui_column_3, ui_track_y_3, ui_column_width, 1);
+    gfx_x = ui_column_4; gfx_y = ui_label_y_3; gfx_drawstr("Serial Compressors");
+    serial_stages = ui_serial_stages.DrawRange(35, serial_stages, 2, 3, 1,
+      ui_column_4, ui_track_y_3, ui_column_width, 1);
+
+    ui_toggle_label_y = 190*gfx_scale;
+    ui_toggle_y = ui_toggle_label_y+12*gfx_scale;
+    gfx_x = ui_column_1; gfx_y = ui_toggle_label_y; gfx_drawstr("Auto Release");
+    auto_release = ui_auto_release.DrawToggle(10, auto_release, ui_column_1,
+      ui_toggle_y, ui_column_width, 1);
+    gfx_x = ui_column_2; gfx_y = ui_toggle_label_y; gfx_drawstr("Processing Bypass");
+    processing_bypass = ui_processing_bypass.DrawToggle(13, processing_bypass,
+      ui_column_2, ui_toggle_y, ui_column_width, 1);
+    gfx_x = ui_column_3; gfx_y = ui_toggle_label_y; gfx_drawstr("Manual Stages");
+    previous_manual_stages = manual_stages;
+    manual_stages = ui_manual_stages.DrawToggle(14, manual_stages, ui_column_3,
+      ui_toggle_y, ui_column_width, 1);
+    previous_manual_stages != manual_stages ? (
+      manual_stages >= 0.5 ? ui_page = 1 : ui_page = 0;
+    );
+    gfx_x = ui_column_4; gfx_y = ui_toggle_label_y; gfx_drawstr("Show Details");
+    debug_display = ui_debug_display.DrawToggle(34, debug_display, ui_column_4,
+      ui_toggle_y, ui_column_width, 1);
+  ) : (
+    ui_manual_width = max(110*gfx_scale, (gfx_w-2*ui_margin-2*ui_gap)/3);
+    ui_manual_1 = ui_margin;
+    ui_manual_2 = ui_manual_1+ui_manual_width+ui_gap;
+    ui_manual_3 = ui_manual_2+ui_manual_width+ui_gap;
+    gfx_setfont(0, "Arial", 10*gfx_scale, 'b');
+    gfx_set(0.77, 0.82, 0.81, 1);
+    gfx_x = ui_manual_1; gfx_y = 49*gfx_scale; gfx_drawstr("Stage 1");
+    gfx_x = ui_manual_2; gfx_y = 49*gfx_scale; gfx_drawstr("Stage 2");
+    gfx_x = ui_manual_3; gfx_y = 49*gfx_scale; gfx_drawstr("Stage 3");
+    gfx_setfont(0, "Arial", 8*gfx_scale);
+    ui_manual_enabled = manual_stages >= 0.5;
+    ui_manual_label_y = 65*gfx_scale;
+    ui_manual_track_y = ui_manual_label_y+11*gfx_scale;
+    gfx_set(0.72, 0.78, 0.77, 1);
+
+    gfx_x = ui_manual_1; gfx_y = ui_manual_label_y; gfx_drawstr("Threshold [dB]");
+    manual_1_threshold = ui_manual_1_threshold.DrawRange(15, manual_1_threshold,
+      -120, 0, 0.1, ui_manual_1, ui_manual_track_y, ui_manual_width, ui_manual_enabled);
+    gfx_x = ui_manual_2; gfx_y = ui_manual_label_y; gfx_drawstr("Threshold [dB]");
+    manual_2_threshold = ui_manual_2_threshold.DrawRange(21, manual_2_threshold,
+      -120, 0, 0.1, ui_manual_2, ui_manual_track_y, ui_manual_width, ui_manual_enabled);
+    gfx_x = ui_manual_3; gfx_y = ui_manual_label_y; gfx_drawstr("Threshold [dB]");
+    manual_3_threshold = ui_manual_3_threshold.DrawRange(27, manual_3_threshold,
+      -120, 0, 0.1, ui_manual_3, ui_manual_track_y, ui_manual_width, ui_manual_enabled);
+
+    ui_manual_label_y += 28*gfx_scale; ui_manual_track_y = ui_manual_label_y+11*gfx_scale;
+    gfx_x = ui_manual_1; gfx_y = ui_manual_label_y; gfx_drawstr("Ratio");
+    manual_1_ratio = ui_manual_1_ratio.DrawRange(16, manual_1_ratio, 1, 10, 0.05,
+      ui_manual_1, ui_manual_track_y, ui_manual_width, ui_manual_enabled);
+    gfx_x = ui_manual_2; gfx_y = ui_manual_label_y; gfx_drawstr("Ratio");
+    manual_2_ratio = ui_manual_2_ratio.DrawRange(22, manual_2_ratio, 1, 10, 0.05,
+      ui_manual_2, ui_manual_track_y, ui_manual_width, ui_manual_enabled);
+    gfx_x = ui_manual_3; gfx_y = ui_manual_label_y; gfx_drawstr("Ratio");
+    manual_3_ratio = ui_manual_3_ratio.DrawRange(28, manual_3_ratio, 1, 10, 0.05,
+      ui_manual_3, ui_manual_track_y, ui_manual_width, ui_manual_enabled);
+
+    ui_manual_label_y += 28*gfx_scale; ui_manual_track_y = ui_manual_label_y+11*gfx_scale;
+    gfx_x = ui_manual_1; gfx_y = ui_manual_label_y; gfx_drawstr("Knee [dB]");
+    manual_1_knee = ui_manual_1_knee.DrawRange(17, manual_1_knee, 0, 24, 0.1,
+      ui_manual_1, ui_manual_track_y, ui_manual_width, ui_manual_enabled);
+    gfx_x = ui_manual_2; gfx_y = ui_manual_label_y; gfx_drawstr("Knee [dB]");
+    manual_2_knee = ui_manual_2_knee.DrawRange(23, manual_2_knee, 0, 24, 0.1,
+      ui_manual_2, ui_manual_track_y, ui_manual_width, ui_manual_enabled);
+    gfx_x = ui_manual_3; gfx_y = ui_manual_label_y; gfx_drawstr("Knee [dB]");
+    manual_3_knee = ui_manual_3_knee.DrawRange(29, manual_3_knee, 0, 24, 0.1,
+      ui_manual_3, ui_manual_track_y, ui_manual_width, ui_manual_enabled);
+
+    ui_manual_label_y += 28*gfx_scale; ui_manual_track_y = ui_manual_label_y+11*gfx_scale;
+    gfx_x = ui_manual_1; gfx_y = ui_manual_label_y; gfx_drawstr("Attack [ms]");
+    manual_1_attack = ui_manual_1_attack.DrawRange(18, manual_1_attack, 0, 500, 0.1,
+      ui_manual_1, ui_manual_track_y, ui_manual_width, ui_manual_enabled);
+    gfx_x = ui_manual_2; gfx_y = ui_manual_label_y; gfx_drawstr("Attack [ms]");
+    manual_2_attack = ui_manual_2_attack.DrawRange(24, manual_2_attack, 0, 500, 0.1,
+      ui_manual_2, ui_manual_track_y, ui_manual_width, ui_manual_enabled);
+    gfx_x = ui_manual_3; gfx_y = ui_manual_label_y; gfx_drawstr("Attack [ms]");
+    manual_3_attack = ui_manual_3_attack.DrawRange(30, manual_3_attack, 0, 500, 0.1,
+      ui_manual_3, ui_manual_track_y, ui_manual_width, ui_manual_enabled);
+
+    ui_manual_label_y += 28*gfx_scale; ui_manual_track_y = ui_manual_label_y+11*gfx_scale;
+    gfx_x = ui_manual_1; gfx_y = ui_manual_label_y; gfx_drawstr("Pre-comp [ms]");
+    manual_1_precomp = ui_manual_1_precomp.DrawRange(19, manual_1_precomp, 0, 100, 0.1,
+      ui_manual_1, ui_manual_track_y, ui_manual_width, ui_manual_enabled);
+    gfx_x = ui_manual_2; gfx_y = ui_manual_label_y; gfx_drawstr("Pre-comp [ms]");
+    manual_2_precomp = ui_manual_2_precomp.DrawRange(25, manual_2_precomp, 0, 100, 0.1,
+      ui_manual_2, ui_manual_track_y, ui_manual_width, ui_manual_enabled);
+    gfx_x = ui_manual_3; gfx_y = ui_manual_label_y; gfx_drawstr("Pre-comp [ms]");
+    manual_3_precomp = ui_manual_3_precomp.DrawRange(31, manual_3_precomp, 0, 100, 0.1,
+      ui_manual_3, ui_manual_track_y, ui_manual_width, ui_manual_enabled);
+
+    ui_manual_label_y += 28*gfx_scale; ui_manual_track_y = ui_manual_label_y+11*gfx_scale;
+    gfx_x = ui_manual_1; gfx_y = ui_manual_label_y; gfx_drawstr("Release [ms]");
+    manual_1_release = ui_manual_1_release.DrawRange(20, manual_1_release, 0, 3000, 1,
+      ui_manual_1, ui_manual_track_y, ui_manual_width, ui_manual_enabled);
+    gfx_x = ui_manual_2; gfx_y = ui_manual_label_y; gfx_drawstr("Release [ms]");
+    manual_2_release = ui_manual_2_release.DrawRange(26, manual_2_release, 0, 3000, 1,
+      ui_manual_2, ui_manual_track_y, ui_manual_width, ui_manual_enabled);
+    gfx_x = ui_manual_3; gfx_y = ui_manual_label_y; gfx_drawstr("Release [ms]");
+    manual_3_release = ui_manual_3_release.DrawRange(32, manual_3_release, 0, 3000, 1,
+      ui_manual_3, ui_manual_track_y, ui_manual_width, ui_manual_enabled);
+
+    gfx_setfont(0, "Arial", 9*gfx_scale);
+    gfx_x = ui_margin; gfx_y = 232*gfx_scale;
+    ui_manual_enabled ? (
+      gfx_set(0.59, 0.75, 0.69, 1);
+      gfx_drawstr("Manual stages are active. Each column drives one compressor stage.");
+    ) : (
+      gfx_set(0.74, 0.67, 0.44, 1);
+      gfx_drawstr("Enable Manual Stages on the Linked controls page to edit these values.");
+    );
+  );
+
+  ui_parameter_change_mask ? (
+    sliderchange(ui_parameter_change_mask);
+    ApplyParameters();
+  );
+  ui_mouse_was_down = ui_mouse_down;
+
+  // The bottom-left bound follows the lowest active stage threshold. With the
+  // default -12/-20/-28 dB progression, both axes start at -30 dB.
+  serial_stages >= 3 ? (
+    graph_min_db = min(stage1_threshold, min(stage2_threshold,
+      stage3_threshold))-2;
+    graph_max_db = max(0, max(stage1_threshold+stage1_knee,
+      max(stage2_threshold+stage2_knee, stage3_threshold+stage3_knee))+2);
+  ) : (
+    graph_min_db = min(stage1_threshold, stage2_threshold)-2;
+    graph_max_db = max(0, max(stage1_threshold+stage1_knee,
+      stage2_threshold+stage2_knee)+2);
+  );
+  graph_max_db <= graph_min_db+6 ? graph_max_db = graph_min_db+6;
+
+  graph_left = 42*gfx_scale;
+  graph_top = 252*gfx_scale;
+  graph_available_width = gfx_w-graph_left-84*gfx_scale;
+  graph_available_height = gfx_h-graph_top-25*gfx_scale;
+  graph_size = max(100*gfx_scale, min(graph_available_width,
+    graph_available_height));
+  graph_width = graph_height = graph_size;
+  graph_right = graph_left+graph_width;
+  graph_bottom = graph_top+graph_height;
+
+  gfx_set(0.10, 0.13, 0.14, 1);
+  gfx_rect(graph_left, graph_top, graph_width, graph_height, 1);
+  gfx_setfont(0, "Arial", 9*gfx_scale);
+
+  graph_range_db = graph_max_db-graph_min_db;
+  graph_range_db <= 32 ? graph_grid_step = 5 :
+    graph_range_db <= 64 ? graph_grid_step = 10 : graph_grid_step = 20;
+  grid_db = floor(graph_min_db/graph_grid_step)*graph_grid_step;
+  grid_count = min(13, ceil((graph_max_db-grid_db)/graph_grid_step)+1);
+  loop(grid_count,
+    grid_x = GraphX(grid_db);
+    grid_y = GraphY(grid_db);
+    gfx_set(0.19, 0.23, 0.24, 1);
+    gfx_line(grid_x, graph_top, grid_x, graph_bottom);
+    gfx_line(graph_left, grid_y, graph_right, grid_y);
+    gfx_set(0.63, 0.69, 0.68, 1);
+    sprintf(#grid_label, "%.0f", grid_db);
+    gfx_x = grid_x-7*gfx_scale;
+    gfx_y = graph_bottom+5*gfx_scale;
+    gfx_drawstr(#grid_label);
+    gfx_x = 4*gfx_scale;
+    gfx_y = grid_y-5*gfx_scale;
+    gfx_drawstr(#grid_label);
+    grid_db += graph_grid_step;
+  );
+
+  // Unity is deliberately thinner/subtler than the aggregate curve.
+  gfx_set(0.55, 0.59, 0.60, 0.65);
+  gfx_line(GraphX(graph_min_db), GraphY(graph_min_db), GraphX(graph_max_db),
+    GraphY(graph_max_db));
+  DrawStandaloneCurve(stage1_threshold, stage1_ratio, stage1_knee,
+    stage1_active, 0.38, 0.62, 0.98);
+  DrawStandaloneCurve(stage2_threshold, stage2_ratio, stage2_knee,
+    stage2_active, 0.91, 0.61, 0.23);
+  serial_stages >= 3 ? DrawStandaloneCurve(stage3_threshold, stage3_ratio,
+    stage3_knee, stage3_active, 0.82, 0.39, 0.78);
+  DrawKneeMarkers(stage1_threshold, stage1_ratio, stage1_knee,
+    stage1_active, 0.38, 0.62, 0.98);
+  DrawKneeMarkers(stage2_threshold, stage2_ratio, stage2_knee,
+    stage2_active, 0.91, 0.61, 0.23);
+  serial_stages >= 3 ? DrawKneeMarkers(stage3_threshold, stage3_ratio,
+    stage3_knee, stage3_active, 0.82, 0.39, 0.78);
+  DrawAggregateCurve();
+
+  // Static target (mint) follows the detector; dynamic actual (white) uses a
+  // delayed input point so it refers to the sample presently leaving the last
+  // active serial stage.
+  gfx_set(0.28, 0.95, 0.65, 1);
+  gfx_circle(GraphX(live_static_input_db), GraphY(live_static_output_db),
+    3.5*gfx_scale, 1);
+  gfx_set(0.95, 0.97, 0.96, 1);
+  gfx_circle(GraphX(live_actual_input_db), GraphY(live_actual_output_db),
+    3*gfx_scale, 1);
+
+  gfx_setfont(0, "Arial", 10*gfx_scale, 'b');
+  gfx_set(0.89, 0.93, 0.92, 1);
+  gfx_x = graph_left;
+  gfx_y = graph_top-17*gfx_scale;
+  gfx_drawstr("Transfer");
+  gfx_setfont(0, "Arial", 9*gfx_scale);
+  gfx_set(0.39, 0.62, 0.98, 1);
+  gfx_x = graph_right-(serial_stages >= 3 ? 164*gfx_scale : 134*gfx_scale);
+  gfx_y = graph_top-16*gfx_scale;
+  gfx_drawstr("S1");
+  gfx_set(0.91, 0.61, 0.23, 1);
+  gfx_x = graph_right-(serial_stages >= 3 ? 138*gfx_scale : 106*gfx_scale);
+  gfx_drawstr("S2");
+  serial_stages >= 3 ? (
+    gfx_set(0.82, 0.39, 0.78, 1);
+    gfx_x = graph_right-112*gfx_scale;
+    gfx_drawstr("S3");
+  );
+  gfx_set(0.27, 0.92, 0.61, 1);
+  gfx_x = graph_right-(serial_stages >= 3 ? 86*gfx_scale : 78*gfx_scale);
+  gfx_drawstr("Total");
+
+  // Only the individual stages need meters; REAPER displays overall GR from
+  // ext_gr_meter in the FX window's own meter strip.
+  meter_left = graph_right+16*gfx_scale;
+  meter_top = graph_top+17*gfx_scale;
+  meter_bottom = graph_bottom-18*gfx_scale;
+  meter_height = max(1, meter_bottom-meter_top);
+  meter_width = 9*gfx_scale;
+  meter_gap = 5*gfx_scale;
+  DrawGainMeter(meter_stage1_db, meter_left, meter_top, meter_width,
+    meter_height, 0.38, 0.62, 0.98);
+  DrawGainMeter(meter_stage2_db, meter_left+meter_width+meter_gap, meter_top,
+    meter_width, meter_height, 0.91, 0.61, 0.23);
+  serial_stages >= 3 ? DrawGainMeter(meter_stage3_db,
+    meter_left+2*(meter_width+meter_gap), meter_top, meter_width, meter_height,
+    0.82, 0.39, 0.78);
+  gfx_set(0.76, 0.81, 0.80, 1);
+  gfx_x = meter_left; gfx_y = graph_top; gfx_drawstr("GR");
+  gfx_x = meter_left; gfx_y = meter_bottom+4*gfx_scale; gfx_drawstr("S1");
+  gfx_x = meter_left+meter_width+meter_gap; gfx_y = meter_bottom+4*gfx_scale; gfx_drawstr("S2");
+  serial_stages >= 3 ? (
+    gfx_x = meter_left+2*(meter_width+meter_gap);
+    gfx_y = meter_bottom+4*gfx_scale;
+    gfx_drawstr("S3");
+  );
+*/
