@@ -1,0 +1,47 @@
+desc:DW Remote Session Input Tap
+author:DW Remote Session
+version:0.1.0
+tags:utility analysis
+options:gmem=dw_remote_session_input
+
+in_pin:Input 1
+in_pin:Input 2
+out_pin:Output 1
+out_pin:Output 2
+
+// Shared-memory protocol. The effect is deliberately transparent: spl0 and
+// spl1 are observed but never modified.
+
+@init
+magic = 0x44575253;
+protocol_version = 1;
+capacity_frames = 1000000;
+data_start = 65536;
+frame_stride = 3;
+write_frame = 0;
+
+gmem[0] = magic;
+gmem[1] = protocol_version;
+gmem[2] = srate;
+gmem[3] = min(max(num_ch, 1), 2);
+gmem[4] = capacity_frames;
+gmem[5] = write_frame;
+
+@block
+gmem[0] = magic;
+gmem[1] = protocol_version;
+gmem[2] = srate;
+gmem[3] = min(max(num_ch, 1), 2);
+gmem[4] = capacity_frames;
+
+@sample
+ring_frame = write_frame % capacity_frames;
+base = data_start + ring_frame * frame_stride;
+
+// Publish samples before the sequence and global write position. The reader
+// checks the per-frame sequence twice, so an overwritten frame is rejected.
+gmem[base + 1] = spl0;
+gmem[base + 2] = spl1;
+gmem[base] = write_frame + 1;
+write_frame += 1;
+gmem[5] = write_frame;
