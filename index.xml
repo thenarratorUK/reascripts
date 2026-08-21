@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<index version="1" name="thenarratorUK ReaScripts" commit="7ec650f18bbcaf76f8ab7fefca273b8c2beafb64">
+<index version="1" name="thenarratorUK ReaScripts" commit="a70f14dd327c22f993d6f3ecbe6bc0e1a8cdca93">
   <category name="Adaptive Reference Matcher">
     <reapack name="Adaptive Reference Matcher.jsfx" type="effect" desc="Adaptive EQ with Reference Matching">
       <version name="0.6.0" author="David Winter" time="2026-08-14T14:14:08Z">
@@ -7,6 +7,15 @@
         <source main="main">https://github.com/thenarratorUK/reascripts/raw/ccf1abc8031a2c38522a2017c9f6ef30db39f345/Effects/Adaptive%20Reference%20Matcher/Adaptive%20Reference%20Matcher.jsfx</source>
         <source file="adaptive-eq-gui.png">https://github.com/thenarratorUK/reascripts/raw/ccf1abc8031a2c38522a2017c9f6ef30db39f345/Effects/Adaptive%20Reference%20Matcher/adaptive-eq-gui.png</source>
         <source file="adaptive-eq-gui@2x.png">https://github.com/thenarratorUK/reascripts/raw/ccf1abc8031a2c38522a2017c9f6ef30db39f345/Effects/Adaptive%20Reference%20Matcher/adaptive-eq-gui%402x.png</source>
+      </version>
+    </reapack>
+  </category>
+  <category name="DW Remote Session">
+    <reapack name="DW Remote Session.ext" type="extension" desc="Direct microphone recording for remote REAPER sessions">
+      <version name="0.2.0-beta.1" author="David Winter" time="2026-08-21T13:13:03Z">
+        <changelog><![CDATA[Initial Apple Silicon beta. Installs the native extension and microphone Input FX tap for direct paired recording with input monitoring off.]]></changelog>
+        <source platform="darwin-arm64" file="reaper_dwremote.dylib">https://github.com/thenarratorUK/reascripts/raw/a70f14dd327c22f993d6f3ecbe6bc0e1a8cdca93/Extensions/DW%20Remote%20Session/reaper_dwremote-arm64.dylib</source>
+        <source type="effect" file="DW Remote Input Tap.jsfx">https://github.com/thenarratorUK/reascripts/raw/a70f14dd327c22f993d6f3ecbe6bc0e1a8cdca93/Effects/DW%20Remote%20Session/DW%20Remote%20Input%20Tap.jsfx</source>
       </version>
     </reapack>
   </category>

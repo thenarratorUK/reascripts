@@ -2,6 +2,13 @@
 
 Public REAPER scripts for audiobook, dialogue, and pickup workflows.
 
+## Included extension
+
+- **DW Remote Session** — direct paired recording of a remote participant's
+  armed-track microphone input, including when REAPER input monitoring is off.
+  The current public beta supports Apple Silicon Macs; Windows support is in
+  preparation.
+
 ## Included JSFX
 
 - **Adaptive EQ with Reference Matching** — a mono narration EQ that learns a
@@ -23,10 +30,11 @@ Public REAPER scripts for audiobook, dialogue, and pickup workflows.
    `https://raw.githubusercontent.com/thenarratorUK/reascripts/main/index.xml`
 3. Synchronize packages.
 
-Open **Extensions > ReaPack > Browse packages**, search for **Adaptive
-Reference Matcher**, **TriLeveler Pro**, or **Progressive Serial Compressor**,
-select it, choose **Install**, and apply the transaction. The effects will then
-be available in REAPER's FX browser with the corresponding **JS:** name.
+Open **Extensions > ReaPack > Browse packages**, search for the package you
+want, select it, choose **Install**, and apply the transaction. For **DW Remote
+Session**, restart REAPER after installation; its actions will then appear in
+the Action List. The JSFX packages will be available in the FX browser with
+their corresponding **JS:** names.
 
 ## Notes
 - Many scripts expect REAPER 7 and the SWS/S&M extension.
