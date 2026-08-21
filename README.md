@@ -6,8 +6,7 @@ Public REAPER scripts for audiobook, dialogue, and pickup workflows.
 
 - **DW Remote Session** — direct paired recording of a remote participant's
   armed-track microphone input, including when REAPER input monitoring is off.
-  The current public beta supports Apple Silicon Macs; Windows support is in
-  preparation.
+  The current public beta supports Apple Silicon Macs and 64-bit Windows.
 
 ## Included JSFX
 

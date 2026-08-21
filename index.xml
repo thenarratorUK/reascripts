@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<index version="1" name="thenarratorUK ReaScripts" commit="a70f14dd327c22f993d6f3ecbe6bc0e1a8cdca93">
+<index version="1" name="thenarratorUK ReaScripts" commit="8b89e2cea6c29483020862da98342040ad7487f7">
   <category name="Adaptive Reference Matcher">
     <reapack name="Adaptive Reference Matcher.jsfx" type="effect" desc="Adaptive EQ with Reference Matching">
       <version name="0.6.0" author="David Winter" time="2026-08-14T14:14:08Z">
@@ -15,6 +15,12 @@
       <version name="0.2.0-beta.1" author="David Winter" time="2026-08-21T13:13:03Z">
         <changelog><![CDATA[Initial Apple Silicon beta. Installs the native extension and microphone Input FX tap for direct paired recording with input monitoring off.]]></changelog>
         <source platform="darwin-arm64" file="reaper_dwremote.dylib">https://github.com/thenarratorUK/reascripts/raw/a70f14dd327c22f993d6f3ecbe6bc0e1a8cdca93/Extensions/DW%20Remote%20Session/reaper_dwremote-arm64.dylib</source>
+        <source type="effect" file="DW Remote Input Tap.jsfx">https://github.com/thenarratorUK/reascripts/raw/a70f14dd327c22f993d6f3ecbe6bc0e1a8cdca93/Effects/DW%20Remote%20Session/DW%20Remote%20Input%20Tap.jsfx</source>
+      </version>
+      <version name="0.2.0-beta.2" author="David Winter" time="2026-08-21T13:25:28Z">
+        <changelog><![CDATA[Adds the tested Windows x64 participant build with a self-contained TLS stack. Apple Silicon support is unchanged.]]></changelog>
+        <source platform="darwin-arm64" file="reaper_dwremote.dylib">https://github.com/thenarratorUK/reascripts/raw/a70f14dd327c22f993d6f3ecbe6bc0e1a8cdca93/Extensions/DW%20Remote%20Session/reaper_dwremote-arm64.dylib</source>
+        <source platform="win64" file="reaper_dwremote.dll">https://github.com/thenarratorUK/reascripts/raw/8b89e2cea6c29483020862da98342040ad7487f7/Extensions/DW%20Remote%20Session/reaper_dwremote-win64.dll</source>
         <source type="effect" file="DW Remote Input Tap.jsfx">https://github.com/thenarratorUK/reascripts/raw/a70f14dd327c22f993d6f3ecbe6bc0e1a8cdca93/Effects/DW%20Remote%20Session/DW%20Remote%20Input%20Tap.jsfx</source>
       </version>
     </reapack>
