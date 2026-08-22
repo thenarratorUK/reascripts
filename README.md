@@ -10,7 +10,8 @@ Public REAPER scripts for audiobook, dialogue, and pickup workflows.
   Mac, Intel Mac and Windows x64.
 - **Remote Recorder - Engineer** — creates pairing codes and receives the
   verified recording directly into the current REAPER project's configured
-  media folder. Currently supports Apple Silicon Mac.
+  media folder. Engineer access is individually password-controlled and can be
+  revoked by the owner. Currently supports Apple Silicon Mac.
 
 ## Included JSFX
 
