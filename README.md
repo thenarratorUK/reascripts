@@ -13,6 +13,10 @@ Public REAPER scripts for audiobook, dialogue, and pickup workflows.
   media folder. Engineer access is individually password-controlled and can be
   revoked by the owner. Currently supports Apple Silicon Mac.
 
+The [Remote Recorder guide](Extensions/Remote%20Recorder/README.md) contains the
+complete setup and session instructions for both roles. The extension also
+opens this guide from its **Open Guide** button.
+
 ## Included JSFX
 
 - **Adaptive EQ with Reference Matching** — a mono narration EQ that learns a
