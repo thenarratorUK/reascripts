@@ -11,14 +11,14 @@
     </reapack>
   </category>
   <category name="Remote Recorder">
-    <reapack name="Remote Recorder - Engineer.ext" type="extension" desc="Remote Recorder - Engineer: receive verified sessions into the current project media folder">
+    <reapack name="Remote Recorder - Engineer.ext" type="extension" desc="Remote Recorder - Engineer">
       <version name="0.3.0-beta.1" author="David Winter" time="2026-08-22T16:41:22Z">
         <changelog><![CDATA[First split Engineer package. Creates session codes, runs the local direct receiver and places the verified RF64 WAV in the current project's configured media folder. The private engineer credential is not included.]]></changelog>
         <source platform="darwin-arm64" file="reaper_remote_recorder_engineer.dylib">https://github.com/thenarratorUK/reascripts/raw/90f8863b6d159b3fa11aa4a9ed0bbe7417ce785f/Extensions/Remote%20Recorder/reaper_remote_recorder_engineer-arm64.dylib</source>
         <source type="data" platform="darwin-arm64" file="Remote Recorder/bin/dw-receiver">https://github.com/thenarratorUK/reascripts/raw/90f8863b6d159b3fa11aa4a9ed0bbe7417ce785f/Extensions/Remote%20Recorder/dw-receiver-arm64</source>
       </version>
     </reapack>
-    <reapack name="Remote Recorder - Participant.ext" type="extension" desc="Remote Recorder - Participant: record and directly transfer a microphone with monitoring off">
+    <reapack name="Remote Recorder - Participant.ext" type="extension" desc="Remote Recorder - Participant">
       <version name="0.3.0-beta.1" author="David Winter" time="2026-08-22T16:41:22Z">
         <changelog><![CDATA[First split Participant package for Apple Silicon Mac, Intel Mac and Windows x64. It can join sessions, capture the selected microphone with input monitoring off, retain a local RF64 safety recording and resume interrupted direct transfers. It cannot create session codes.]]></changelog>
         <source platform="darwin-arm64" file="reaper_remote_recorder_participant.dylib">https://github.com/thenarratorUK/reascripts/raw/90f8863b6d159b3fa11aa4a9ed0bbe7417ce785f/Extensions/Remote%20Recorder/reaper_remote_recorder_participant-arm64.dylib</source>
