@@ -2,11 +2,15 @@
 
 Public REAPER scripts for audiobook, dialogue, and pickup workflows.
 
-## Included extension
+## Included extensions
 
-- **DW Remote Session** — direct paired recording of a remote participant's
-  armed-track microphone input, including when REAPER input monitoring is off.
-  The current public beta supports Apple Silicon Macs and 64-bit Windows.
+- **Remote Recorder - Participant** — records the participant's selected
+  microphone input with REAPER input monitoring off, keeps a local safety
+  recording and transfers it directly to the engineer. Supports Apple Silicon
+  Mac, Intel Mac and Windows x64.
+- **Remote Recorder - Engineer** — creates pairing codes and receives the
+  verified recording directly into the current REAPER project's configured
+  media folder. Currently supports Apple Silicon Mac.
 
 ## Included JSFX
 
@@ -30,10 +34,10 @@ Public REAPER scripts for audiobook, dialogue, and pickup workflows.
 3. Synchronize packages.
 
 Open **Extensions > ReaPack > Browse packages**, search for the package you
-want, select it, choose **Install**, and apply the transaction. For **DW Remote
-Session**, restart REAPER after installation; its actions will then appear in
-the Action List. The JSFX packages will be available in the FX browser with
-their corresponding **JS:** names.
+want, select it, choose **Install**, and apply the transaction. Restart REAPER
+after installing either Remote Recorder package, then open it from
+**Extensions > Remote Recorder**. The JSFX packages will be available in the FX
+browser with their corresponding **JS:** names.
 
 ## Notes
 - Many scripts expect REAPER 7 and the SWS/S&M extension.

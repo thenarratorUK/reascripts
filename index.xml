@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<index version="1" name="thenarratorUK ReaScripts" commit="8b89e2cea6c29483020862da98342040ad7487f7">
+<index version="1" name="thenarratorUK ReaScripts" commit="90f8863b6d159b3fa11aa4a9ed0bbe7417ce785f">
   <category name="Adaptive Reference Matcher">
     <reapack name="Adaptive Reference Matcher.jsfx" type="effect" desc="Adaptive EQ with Reference Matching">
       <version name="0.6.0" author="David Winter" time="2026-08-14T14:14:08Z">
@@ -10,18 +10,21 @@
       </version>
     </reapack>
   </category>
-  <category name="DW Remote Session">
-    <reapack name="DW Remote Session.ext" type="extension" desc="Direct microphone recording for remote REAPER sessions">
-      <version name="0.2.0-beta.1" author="David Winter" time="2026-08-21T13:13:03Z">
-        <changelog><![CDATA[Initial Apple Silicon beta. Installs the native extension and microphone Input FX tap for direct paired recording with input monitoring off.]]></changelog>
-        <source platform="darwin-arm64" file="reaper_dwremote.dylib">https://github.com/thenarratorUK/reascripts/raw/a70f14dd327c22f993d6f3ecbe6bc0e1a8cdca93/Extensions/DW%20Remote%20Session/reaper_dwremote-arm64.dylib</source>
-        <source type="effect" file="DW Remote Input Tap.jsfx">https://github.com/thenarratorUK/reascripts/raw/a70f14dd327c22f993d6f3ecbe6bc0e1a8cdca93/Effects/DW%20Remote%20Session/DW%20Remote%20Input%20Tap.jsfx</source>
+  <category name="Remote Recorder">
+    <reapack name="Remote Recorder - Engineer.ext" type="extension" desc="Receive verified Remote Recorder sessions into the current project media folder">
+      <version name="0.3.0-beta.1" author="David Winter" time="2026-08-22T16:41:22Z">
+        <changelog><![CDATA[First split Engineer package. Creates session codes, runs the local direct receiver and places the verified RF64 WAV in the current project's configured media folder. The private engineer credential is not included.]]></changelog>
+        <source platform="darwin-arm64" file="reaper_remote_recorder_engineer.dylib">https://github.com/thenarratorUK/reascripts/raw/90f8863b6d159b3fa11aa4a9ed0bbe7417ce785f/Extensions/Remote%20Recorder/reaper_remote_recorder_engineer-arm64.dylib</source>
+        <source type="data" platform="darwin-arm64" file="Remote Recorder/bin/dw-receiver">https://github.com/thenarratorUK/reascripts/raw/90f8863b6d159b3fa11aa4a9ed0bbe7417ce785f/Extensions/Remote%20Recorder/dw-receiver-arm64</source>
       </version>
-      <version name="0.2.0-beta.2" author="David Winter" time="2026-08-21T13:25:28Z">
-        <changelog><![CDATA[Adds the tested Windows x64 participant build with a self-contained TLS stack. Apple Silicon support is unchanged.]]></changelog>
-        <source platform="darwin-arm64" file="reaper_dwremote.dylib">https://github.com/thenarratorUK/reascripts/raw/a70f14dd327c22f993d6f3ecbe6bc0e1a8cdca93/Extensions/DW%20Remote%20Session/reaper_dwremote-arm64.dylib</source>
-        <source platform="win64" file="reaper_dwremote.dll">https://github.com/thenarratorUK/reascripts/raw/8b89e2cea6c29483020862da98342040ad7487f7/Extensions/DW%20Remote%20Session/reaper_dwremote-win64.dll</source>
-        <source type="effect" file="DW Remote Input Tap.jsfx">https://github.com/thenarratorUK/reascripts/raw/a70f14dd327c22f993d6f3ecbe6bc0e1a8cdca93/Effects/DW%20Remote%20Session/DW%20Remote%20Input%20Tap.jsfx</source>
+    </reapack>
+    <reapack name="Remote Recorder - Participant.ext" type="extension" desc="Record and directly transfer a participant's microphone with monitoring off">
+      <version name="0.3.0-beta.1" author="David Winter" time="2026-08-22T16:41:22Z">
+        <changelog><![CDATA[First split Participant package for Apple Silicon Mac, Intel Mac and Windows x64. It can join sessions, capture the selected microphone with input monitoring off, retain a local RF64 safety recording and resume interrupted direct transfers. It cannot create session codes.]]></changelog>
+        <source platform="darwin-arm64" file="reaper_remote_recorder_participant.dylib">https://github.com/thenarratorUK/reascripts/raw/90f8863b6d159b3fa11aa4a9ed0bbe7417ce785f/Extensions/Remote%20Recorder/reaper_remote_recorder_participant-arm64.dylib</source>
+        <source platform="darwin64" file="reaper_remote_recorder_participant.dylib">https://github.com/thenarratorUK/reascripts/raw/90f8863b6d159b3fa11aa4a9ed0bbe7417ce785f/Extensions/Remote%20Recorder/reaper_remote_recorder_participant-x86_64.dylib</source>
+        <source platform="win64" file="reaper_remote_recorder_participant.dll">https://github.com/thenarratorUK/reascripts/raw/90f8863b6d159b3fa11aa4a9ed0bbe7417ce785f/Extensions/Remote%20Recorder/reaper_remote_recorder_participant-win64.dll</source>
+        <source type="effect" file="Remote Recorder Input Tap.jsfx">https://github.com/thenarratorUK/reascripts/raw/90f8863b6d159b3fa11aa4a9ed0bbe7417ce785f/Effects/Remote%20Recorder/Remote%20Recorder%20Input%20Tap.jsfx</source>
       </version>
     </reapack>
   </category>
