@@ -49,15 +49,28 @@ then reopen REAPER. On Windows, use 64-bit REAPER.
 
 ## Engineer guide
 
-The Engineer package currently supports Apple Silicon Mac.
+The Engineer package supports Apple Silicon Mac and 64-bit Windows 10 or 11.
 
 ### One-time access setup
 
 If the window shows **Set Engineer Password**, ask the Remote Recorder owner for
 your one-time Engineer password. Click the button and paste it once. It is saved
-privately on that Mac.
+privately on that computer.
 
 Installing the Engineer package alone does not grant access.
+
+### Set up the direct connection once
+
+The Engineer, not the Participant, must forward **TCP port 48777** in their
+router to the Engineer computer. The rendezvous service discovers the
+Engineer's current public address when each code is created, so there is no IP
+address to send to the Participant.
+
+On Windows, if Windows Defender Firewall asks about `dw-receiver.exe`, allow it
+on **Private networks**. Do not enable Public networks unless that computer is
+deliberately being used on one. If the router cannot forward the port, or the
+internet provider uses carrier-grade NAT, direct reception will not work on
+that connection.
 
 ### Create and receive a session
 
@@ -71,7 +84,7 @@ Installing the Engineer package alone does not grant access.
 6. Keep your REAPER open until Remote Recorder reports
    **Engineer recording: VERIFIED**.
 
-The participant's audio is sent directly to the Engineer Mac. There is no
+The participant's audio is sent directly to the Engineer computer. There is no
 central download folder to clear later.
 
 ### Owner: add or revoke an engineer
