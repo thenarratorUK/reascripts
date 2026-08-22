@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<index version="1" name="thenarratorUK ReaScripts" commit="4dec31ef111c286f39c5869b0db248336b47f742">
+<index version="1" name="thenarratorUK ReaScripts" commit="0c3872264be984427354bbb5f8c8386ed855a82e">
   <category name="Adaptive Reference Matcher">
     <reapack name="Adaptive Reference Matcher.jsfx" type="effect" desc="Adaptive EQ with Reference Matching">
       <version name="0.6.0" author="David Winter" time="2026-08-14T14:14:08Z">
@@ -12,13 +12,13 @@
   </category>
   <category name="Remote Recorder">
     <reapack name="Remote Recorder - Engineer.ext" type="extension" desc="Remote Recorder - Engineer">
-      <version name="1.2.0" author="David Winter" time="2026-08-22T19:11:14Z">
-        <changelog><![CDATA[Adds automatic UPnP setup for TCP 48777 on compatible routers, with clear GUI status and manual-forwarding fallback. Existing rules for this computer are preserved, rules for other devices are never overwritten, and carrier-grade or upstream NAT is identified when the router reports it. Supports Apple Silicon Mac and Windows x64.]]></changelog>
-        <source platform="darwin-arm64" file="reaper_remote_recorder_engineer.dylib">https://github.com/thenarratorUK/reascripts/raw/4dec31ef111c286f39c5869b0db248336b47f742/Extensions/Remote%20Recorder/reaper_remote_recorder_engineer-arm64.dylib</source>
-        <source type="data" platform="darwin-arm64" file="Remote Recorder/bin/dw-receiver">https://github.com/thenarratorUK/reascripts/raw/4dec31ef111c286f39c5869b0db248336b47f742/Extensions/Remote%20Recorder/dw-receiver-arm64</source>
-        <source platform="win64" file="reaper_remote_recorder_engineer.dll">https://github.com/thenarratorUK/reascripts/raw/4dec31ef111c286f39c5869b0db248336b47f742/Extensions/Remote%20Recorder/reaper_remote_recorder_engineer-win64.dll</source>
-        <source type="data" platform="win64" file="Remote Recorder/bin/dw-receiver.exe">https://github.com/thenarratorUK/reascripts/raw/4dec31ef111c286f39c5869b0db248336b47f742/Extensions/Remote%20Recorder/dw-receiver-win64.exe</source>
-        <source type="data" file="Remote Recorder/licenses/goupnp-LICENSE.txt">https://github.com/thenarratorUK/reascripts/raw/4dec31ef111c286f39c5869b0db248336b47f742/Extensions/Remote%20Recorder/goupnp-LICENSE.txt</source>
+      <version name="1.2.1" author="David Winter" time="2026-08-22T19:28:09Z">
+        <changelog><![CDATA[Engineer access revocation now displays the active, revocable Engineer accounts in a selection list and asks for confirmation. The protected owner account and already-revoked accounts are excluded. Includes the automatic UPnP support added in 1.2.0.]]></changelog>
+        <source platform="darwin-arm64" file="reaper_remote_recorder_engineer.dylib">https://github.com/thenarratorUK/reascripts/raw/0c3872264be984427354bbb5f8c8386ed855a82e/Extensions/Remote%20Recorder/reaper_remote_recorder_engineer-arm64.dylib</source>
+        <source type="data" platform="darwin-arm64" file="Remote Recorder/bin/dw-receiver">https://github.com/thenarratorUK/reascripts/raw/0c3872264be984427354bbb5f8c8386ed855a82e/Extensions/Remote%20Recorder/dw-receiver-arm64</source>
+        <source platform="win64" file="reaper_remote_recorder_engineer.dll">https://github.com/thenarratorUK/reascripts/raw/0c3872264be984427354bbb5f8c8386ed855a82e/Extensions/Remote%20Recorder/reaper_remote_recorder_engineer-win64.dll</source>
+        <source type="data" platform="win64" file="Remote Recorder/bin/dw-receiver.exe">https://github.com/thenarratorUK/reascripts/raw/0c3872264be984427354bbb5f8c8386ed855a82e/Extensions/Remote%20Recorder/dw-receiver-win64.exe</source>
+        <source type="data" file="Remote Recorder/licenses/goupnp-LICENSE.txt">https://github.com/thenarratorUK/reascripts/raw/0c3872264be984427354bbb5f8c8386ed855a82e/Extensions/Remote%20Recorder/goupnp-LICENSE.txt</source>
       </version>
     </reapack>
     <reapack name="Remote Recorder - Participant.ext" type="extension" desc="Remote Recorder - Participant">
