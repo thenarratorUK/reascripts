@@ -106,9 +106,10 @@ Only the owner's Mac shows **Manage Engineer Access**.
 - To add someone, click **Manage Engineer Access**, choose **Yes**, and enter
   their name. Their one-time password is copied to the clipboard; send it to
   them privately.
-- To revoke someone, click **Manage Engineer Access**, choose **No**, and enter
-  their name. They can no longer create session codes, and any unused codes they
-  created are cancelled. A recording that has already paired can still finish.
+- To revoke someone, click **Manage Engineer Access**, choose **No**, select
+  their active account from the list, and confirm. They can no longer create
+  session codes, and any unused codes they created are cancelled. A recording
+  that has already paired can still finish.
 
 ## Important
 
