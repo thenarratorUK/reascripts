@@ -19,8 +19,9 @@ the engineer. Input monitoring stays **off**.
 
 ## Participant guide
 
-The Participant package supports Apple Silicon Mac, Intel Mac, and 64-bit
-Windows 10 or 11.
+The Participant package supports Apple Silicon Mac, Intel Mac, 64-bit Windows
+10 or 11, and Linux x86-64. Linux support is new and awaits one real-user audio
+acceptance test.
 
 ### Set up once
 
@@ -47,9 +48,14 @@ On Mac, use the REAPER build that matches your processor. If macOS blocks the
 extension, open **System Settings > Privacy & Security**, choose **Open Anyway**,
 then reopen REAPER. On Windows, use 64-bit REAPER.
 
+On Linux, use the x86-64 build of REAPER. ReaPack selects the Linux extension
+automatically.
+
 ## Engineer guide
 
-The Engineer package supports Apple Silicon Mac and 64-bit Windows 10 or 11.
+The Engineer package supports Apple Silicon Mac, 64-bit Windows 10 or 11, and
+Linux x86-64. Linux support is new and awaits one real-user audio acceptance
+test.
 
 ### One-time access setup
 
@@ -83,6 +89,9 @@ on **Private networks**. Do not enable Public networks unless that computer is
 deliberately being used on one. UPnP cannot bypass carrier-grade NAT. If the
 internet provider uses it, the Engineer needs a public-IP service such as an
 L2TP tunnel, or another suitable routed connection.
+
+On Linux, allow inbound TCP port 48777 in the computer's firewall if it is
+enabled. The receiver itself is installed and started by Remote Recorder.
 
 ### Create and receive a session
 
