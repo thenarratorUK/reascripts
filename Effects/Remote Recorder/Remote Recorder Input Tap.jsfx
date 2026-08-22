@@ -1,6 +1,6 @@
-desc:DW Remote Session Input Tap
-author:DW Remote Session
-version:0.1.0
+desc:Remote Recorder Input Tap
+author:David Winter
+version:0.3.0
 tags:utility analysis
 options:gmem=dw_remote_session_input
 
@@ -9,8 +9,7 @@ in_pin:Input 2
 out_pin:Output 1
 out_pin:Output 2
 
-// Shared-memory protocol. The effect is deliberately transparent: spl0 and
-// spl1 are observed but never modified.
+// Transparent microphone-input bridge. spl0 and spl1 are observed but never modified.
 
 @init
 magic = 0x44575253;
