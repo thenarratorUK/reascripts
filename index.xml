@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<index version="1" name="thenarratorUK ReaScripts" commit="b866119c9a1af1be26c9b720fe13fbbfc23743b4">
+<index version="1" name="thenarratorUK ReaScripts" commit="11f189a4a06f8ee2958de9a2946253a02a35584c">
   <category name="Adaptive Reference Matcher">
     <reapack name="Adaptive Reference Matcher.jsfx" type="effect" desc="Adaptive EQ with Reference Matching">
       <version name="0.6.0" author="David Winter" time="2026-08-14T14:14:08Z">
@@ -12,19 +12,21 @@
   </category>
   <category name="Remote Recorder">
     <reapack name="Remote Recorder - Engineer.ext" type="extension" desc="Remote Recorder - Engineer">
-      <version name="1.0.0" author="David Winter" time="2026-08-22T18:07:04Z">
-        <changelog><![CDATA[Remote Recorder 1.0. Adds individually password-controlled Engineer accounts, owner-only creation and revocation controls, clearer access errors, and an Open Guide button. Existing private Engineer access remains compatible; no access password or owner credential is included in the package.]]></changelog>
-        <source platform="darwin-arm64" file="reaper_remote_recorder_engineer.dylib">https://github.com/thenarratorUK/reascripts/raw/b866119c9a1af1be26c9b720fe13fbbfc23743b4/Extensions/Remote%20Recorder/reaper_remote_recorder_engineer-arm64.dylib</source>
-        <source type="data" platform="darwin-arm64" file="Remote Recorder/bin/dw-receiver">https://github.com/thenarratorUK/reascripts/raw/b866119c9a1af1be26c9b720fe13fbbfc23743b4/Extensions/Remote%20Recorder/dw-receiver-arm64</source>
+      <version name="1.1.0" author="David Winter" time="2026-08-22T18:43:53Z">
+        <changelog><![CDATA[Adds the complete Engineer role for Windows x64: native receiver launch, private Windows credential storage, session-code creation and direct reception. Apple Silicon Mac remains supported. The guide now includes the one-time Windows firewall and TCP port setup.]]></changelog>
+        <source platform="darwin-arm64" file="reaper_remote_recorder_engineer.dylib">https://github.com/thenarratorUK/reascripts/raw/11f189a4a06f8ee2958de9a2946253a02a35584c/Extensions/Remote%20Recorder/reaper_remote_recorder_engineer-arm64.dylib</source>
+        <source type="data" platform="darwin-arm64" file="Remote Recorder/bin/dw-receiver">https://github.com/thenarratorUK/reascripts/raw/11f189a4a06f8ee2958de9a2946253a02a35584c/Extensions/Remote%20Recorder/dw-receiver-arm64</source>
+        <source platform="win64" file="reaper_remote_recorder_engineer.dll">https://github.com/thenarratorUK/reascripts/raw/11f189a4a06f8ee2958de9a2946253a02a35584c/Extensions/Remote%20Recorder/reaper_remote_recorder_engineer-win64.dll</source>
+        <source type="data" platform="win64" file="Remote Recorder/bin/dw-receiver.exe">https://github.com/thenarratorUK/reascripts/raw/11f189a4a06f8ee2958de9a2946253a02a35584c/Extensions/Remote%20Recorder/dw-receiver-win64.exe</source>
       </version>
     </reapack>
     <reapack name="Remote Recorder - Participant.ext" type="extension" desc="Remote Recorder - Participant">
-      <version name="1.0.0" author="David Winter" time="2026-08-22T18:07:04Z">
-        <changelog><![CDATA[Remote Recorder 1.0 for Apple Silicon Mac, Intel Mac and Windows x64. Joins sessions, captures the selected microphone with input monitoring off, retains a local RF64 safety recording, resumes interrupted direct transfers, and opens the current public guide from the GUI. It cannot create session codes.]]></changelog>
-        <source platform="darwin-arm64" file="reaper_remote_recorder_participant.dylib">https://github.com/thenarratorUK/reascripts/raw/b866119c9a1af1be26c9b720fe13fbbfc23743b4/Extensions/Remote%20Recorder/reaper_remote_recorder_participant-arm64.dylib</source>
-        <source platform="darwin64" file="reaper_remote_recorder_participant.dylib">https://github.com/thenarratorUK/reascripts/raw/b866119c9a1af1be26c9b720fe13fbbfc23743b4/Extensions/Remote%20Recorder/reaper_remote_recorder_participant-x86_64.dylib</source>
-        <source platform="win64" file="reaper_remote_recorder_participant.dll">https://github.com/thenarratorUK/reascripts/raw/b866119c9a1af1be26c9b720fe13fbbfc23743b4/Extensions/Remote%20Recorder/reaper_remote_recorder_participant-win64.dll</source>
-        <source type="effect" file="Remote Recorder Input Tap.jsfx">https://github.com/thenarratorUK/reascripts/raw/b866119c9a1af1be26c9b720fe13fbbfc23743b4/Effects/Remote%20Recorder/Remote%20Recorder%20Input%20Tap.jsfx</source>
+      <version name="1.1.0" author="David Winter" time="2026-08-22T18:43:53Z">
+        <changelog><![CDATA[Product version synchronized with Remote Recorder 1.1 and the updated cross-platform guide. Participant capture and direct-transfer behaviour is unchanged. Supports Apple Silicon Mac, Intel Mac and Windows x64.]]></changelog>
+        <source platform="darwin-arm64" file="reaper_remote_recorder_participant.dylib">https://github.com/thenarratorUK/reascripts/raw/11f189a4a06f8ee2958de9a2946253a02a35584c/Extensions/Remote%20Recorder/reaper_remote_recorder_participant-arm64.dylib</source>
+        <source platform="darwin64" file="reaper_remote_recorder_participant.dylib">https://github.com/thenarratorUK/reascripts/raw/11f189a4a06f8ee2958de9a2946253a02a35584c/Extensions/Remote%20Recorder/reaper_remote_recorder_participant-x86_64.dylib</source>
+        <source platform="win64" file="reaper_remote_recorder_participant.dll">https://github.com/thenarratorUK/reascripts/raw/11f189a4a06f8ee2958de9a2946253a02a35584c/Extensions/Remote%20Recorder/reaper_remote_recorder_participant-win64.dll</source>
+        <source type="effect" file="Remote Recorder Input Tap.jsfx">https://github.com/thenarratorUK/reascripts/raw/11f189a4a06f8ee2958de9a2946253a02a35584c/Effects/Remote%20Recorder/Remote%20Recorder%20Input%20Tap.jsfx</source>
       </version>
     </reapack>
   </category>
