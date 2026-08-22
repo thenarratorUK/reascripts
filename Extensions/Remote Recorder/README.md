@@ -59,18 +59,30 @@ privately on that computer.
 
 Installing the Engineer package alone does not grant access.
 
-### Set up the direct connection once
+### Set up the direct connection
 
-The Engineer, not the Participant, must forward **TCP port 48777** in their
-router to the Engineer computer. The rendezvous service discovers the
+Remote Recorder automatically asks a compatible router to forward **TCP port
+48777** to the Engineer computer using UPnP. After creating a session code,
+check the router message shown beneath it:
+
+- **opened automatically with UPnP**: no manual router setup is needed.
+- **already forwarded to this computer**: the existing rule is being used.
+- **UPnP could not open TCP 48777**: manually forward TCP port 48777 to the
+  Engineer computer, or keep using an existing manual rule.
+- **already forwarded to another device**: change that existing rule manually.
+- **behind another NAT**: the local router rule worked, but carrier-grade NAT or
+  another upstream router still prevents a direct connection.
+
+Remote Recorder never replaces another device's rule and removes only a
+temporary rule that it created itself. The rendezvous service discovers the
 Engineer's current public address when each code is created, so there is no IP
 address to send to the Participant.
 
 On Windows, if Windows Defender Firewall asks about `dw-receiver.exe`, allow it
 on **Private networks**. Do not enable Public networks unless that computer is
-deliberately being used on one. If the router cannot forward the port, or the
-internet provider uses carrier-grade NAT, direct reception will not work on
-that connection.
+deliberately being used on one. UPnP cannot bypass carrier-grade NAT. If the
+internet provider uses it, the Engineer needs a public-IP service such as an
+L2TP tunnel, or another suitable routed connection.
 
 ### Create and receive a session
 
