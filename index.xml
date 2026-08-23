@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <index version="1" name="thenarratorUK ReaScripts" commit="df4fcc9792e2fc53e969b61dd7f3bac3f37f197a">
-  <category name="Adaptive Reference Matcher">
+  <category name="Plugins">
     <reapack name="Adaptive Reference Matcher.jsfx" type="effect" desc="Adaptive EQ with Reference Matching">
       <version name="0.6.0" author="David Winter" time="2026-08-14T14:14:08Z">
         <changelog><![CDATA[Initial public beta for external testing.]]></changelog>
@@ -9,8 +9,6 @@
         <source file="adaptive-eq-gui@2x.png">https://github.com/thenarratorUK/reascripts/raw/ccf1abc8031a2c38522a2017c9f6ef30db39f345/Effects/Adaptive%20Reference%20Matcher/adaptive-eq-gui%402x.png</source>
       </version>
     </reapack>
-  </category>
-  <category name="Remote Recorder">
     <reapack name="Remote Recorder - Engineer.ext" type="extension" desc="Remote Recorder - Engineer">
       <version name="1.3.0" author="David Winter" time="2026-08-22T22:40:51Z">
         <changelog><![CDATA[Adds Linux x86-64 support with a native REAPER/SWELL GUI and a static Engineer receiver helper. The Linux build, mock-host suite and installation flow are verified; one real Linux microphone session remains the acceptance boundary. Existing Mac and Windows behaviour is unchanged.]]></changelog>
@@ -33,16 +31,12 @@
         <source type="effect" file="Remote Recorder Input Tap.jsfx">https://github.com/thenarratorUK/reascripts/raw/4dec31ef111c286f39c5869b0db248336b47f742/Effects/Remote%20Recorder/Remote%20Recorder%20Input%20Tap.jsfx</source>
       </version>
     </reapack>
-  </category>
-  <category name="Progressive Serial Compressor">
     <reapack name="Progressive Serial Compressor.jsfx" type="effect" desc="Gentle two- or three-stage serial compressor">
       <version name="0.1.0-beta.1" author="David Winter" time="2026-08-19T14:05:14Z">
         <changelog><![CDATA[Initial public beta. Includes linked threshold/knee spacing, two- or three-stage serial processing, staggered timing and lookahead, and manual per-stage controls.]]></changelog>
         <source main="main">https://github.com/thenarratorUK/reascripts/raw/7ec650f18bbcaf76f8ab7fefca273b8c2beafb64/Effects/Progressive%20Serial%20Compressor/Progressive%20Serial%20Compressor.jsfx</source>
       </version>
     </reapack>
-  </category>
-  <category name="TriLeveler Pro">
     <reapack name="TriLevelerPro.jsfx" type="effect" desc="Long-form voice leveller with ambience preservation">
       <version name="0.1.0-beta.1" author="David Winter" time="2026-08-17T11:56:11Z">
         <changelog><![CDATA[Initial public beta. Includes speech-targeted learning, room-tone threshold learning, configurable lookahead, ambience preservation, and a live learning-progress display.]]></changelog>
