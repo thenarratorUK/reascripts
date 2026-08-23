@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<index version="1" name="thenarratorUK ReaScripts" commit="df4fcc9792e2fc53e969b61dd7f3bac3f37f197a">
+<index version="1" name="thenarratorUK ReaScripts" commit="b99cf35d9bfeba4ef1e0d8ef9c92595ca972ccac">
   <category name="Plugins">
     <reapack name="Adaptive Reference Matcher.jsfx" type="effect" desc="Adaptive EQ with Reference Matching">
       <version name="0.6.0" author="David Winter" time="2026-08-14T14:14:08Z">
