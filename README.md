@@ -19,6 +19,10 @@ opens this guide from its **Open Guide** button.
 
 ## Included JSFX
 
+- **Adaptive Phase Rotator** — a mono narration phase rotator with learned,
+  adaptive, and learned-plus-adaptive modes. The package includes the companion
+  time-selection learning action and requires SWS/S&M for that action. This is
+  an early beta release intended for testing.
 - **Adaptive EQ with Reference Matching** — a mono narration EQ that learns a
   fixed tonal baseline, continually corrects changes away from that baseline,
   and can optionally match one of 14 embedded reference profiles. This is a

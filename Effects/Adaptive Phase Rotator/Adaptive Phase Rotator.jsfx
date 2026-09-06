@@ -1,0 +1,567 @@
+desc:Adaptive Phase Rotator
+// @description Mono learned and adaptive phase rotation for narration
+// @author David Winter
+// @version 0.3.0
+// @about
+//   Learn and Hold uses the angle written by the companion ReaScript.
+//   Adaptive uses a fixed 764 ms analysis window and transition.
+//   Learn and Adaptive starts from the learned angle, then holds each
+//   accepted adaptive position until a better one is demonstrated.
+//   The read-only display shows the learned start and live processing angles.
+//   The input is treated as mono (channel 1) and copied to both outputs.
+//   DSP is derived from the frequency-domain phase-rotation method used
+//   by REAPER's stock JS: Phase Rotator.
+
+tags: processing phase mono dialogue
+options:maxmem=2000000
+options:gmem=AdaptivePhaseRotatorLearn
+
+slider1:mode=2<0,2,1{Learn and Hold,Adaptive,Learn and Adaptive}>Mode
+slider2:learned_angle=0<-90,90,0.25>Learned angle (set by Learn action)
+slider3:current_angle=0<-180,180,0.01>-Current angle
+slider4:headroom_recovered=0<0,24,0.01>-Headroom recovered (dB)
+slider5:analysed_seconds=0<0,86400,0.001>-Analysed seconds
+slider10:analysis_capture=0<0,1,1>-Analysis capture
+
+in_pin:mono input
+in_pin:unused
+out_pin:mono output
+out_pin:mono output
+
+@init
+
+  FFT_SIZE = 1024;
+  HALF_FFT = FFT_SIZE / 2;
+  LOOKAHEAD_SECONDS = 0.764;
+  MIN_IMPROVEMENT_DB = 0.25;
+  CONSISTENT_WINDOWS = 2;
+  COOLDOWN_AFTER_MOVE = 1;
+  TARGET_AGREEMENT_DEGREES = 45;
+  MAX_MOVE_DEGREES = 12;
+  TRANSITION_CHECK_STEPS = 8;
+  TRANSITION_TOLERANCE_DB = 0.02;
+  TRANSITION_MAX_RATIO =
+    exp(TRANSITION_TOLERANCE_DB*log(10)/20);
+  PHASE_BINS = 720;
+  CANDIDATES = 720;
+  ANGLE_STEP = 180 / CANDIDATES;
+  EPS_POWER = 0.000000000000000000000001;
+  EPS_PEAK = 0.000000000001;
+  EPS_GATE = 0.0000001;
+  EPS_DIV = 0.000000000000000000000000000001;
+  HUGE_PEAK = 100000000000000000000000000000;
+  // Re-solving all 720 candidate angles is deliberately much less frequent
+  // than the FFT hop. The result still covers the whole capture so far.
+  LEARN_UPDATE_SAMPLES = 8192;
+
+  // Keep all FFT buffers below a 65,536-slot boundary.
+  window = 0;
+  fft_buf0 = 2048;
+  fft_buf1 = 4096;
+  raw_delay = 6144;
+
+  lookahead_samples = max(1, floor(LOOKAHEAD_SECONDS * srate + 0.5));
+  ring_size = lookahead_samples + 8;
+
+  ring_x = 16384;
+  ring_h = ring_x + ring_size;
+
+  adapt_bin_x = ring_h + ring_size;
+  adapt_bin_h = adapt_bin_x + PHASE_BINS;
+  adapt_bin_r2 = adapt_bin_h + PHASE_BINS;
+
+  learn_bin_x = adapt_bin_r2 + PHASE_BINS;
+  learn_bin_h = learn_bin_x + PHASE_BINS;
+  learn_bin_r2 = learn_bin_h + PHASE_BINS;
+
+  candidate_cos = learn_bin_r2 + PHASE_BINS;
+  candidate_sin = candidate_cos + CANDIDATES;
+
+  function clear_bins(base_x, base_h, base_r2)
+    local(i)
+  (
+    memset(base_x, 0, PHASE_BINS);
+    memset(base_h, 0, PHASE_BINS);
+    memset(base_r2, 0, PHASE_BINS);
+  );
+
+  function wrap_display_angle(angle)
+  (
+    while(angle > 180) ( angle -= 360; );
+    while(angle < -180) ( angle += 360; );
+    angle;
+  );
+
+  function shortest_peak_angle_delta(from_angle, to_angle)
+    local(delta)
+  (
+    // Peak magnitude is identical 180 degrees apart. Choose the equivalent
+    // target requiring the least movement and avoid unnecessary polarity flips.
+    delta = to_angle - from_angle;
+    while(delta > 90) ( delta -= 180; );
+    while(delta < -90) ( delta += 180; );
+    delta;
+  );
+
+  function cubic_interp(p0, p1, p2, p3, t)
+    local(a0, a1, a2)
+  (
+    a0 = -0.5*p0 + 1.5*p1 - 1.5*p2 + 0.5*p3;
+    a1 = p0 - 2.5*p1 + 2*p2 - 0.5*p3;
+    a2 = -0.5*p0 + 0.5*p2;
+    ((a0*t + a1)*t + a2)*t + p1;
+  );
+
+  function add_phase_point(base_x, base_h, base_r2, xv, hv)
+    local(r2, phase, bin)
+  (
+    r2 = xv*xv + hv*hv;
+    r2 > EPS_POWER ? (
+      phase = atan2(hv, xv);
+      phase < 0 ? phase += 2*$pi;
+      bin = floor(phase * PHASE_BINS / (2*$pi));
+      bin >= PHASE_BINS ? bin = PHASE_BINS - 1;
+      r2 > base_r2[bin] ? (
+        base_r2[bin] = r2;
+        base_x[bin] = xv;
+        base_h[bin] = hv;
+      );
+    );
+  );
+
+  function add_oversampled_interval(base_x, base_h, base_r2)
+    local(t, n, xv, hv)
+  (
+    // Four-point cubic interpolation at 4x density. Because phase rotation is
+    // linear in the original/quadrature pair, this tests inter-sample peaks for
+    // every candidate without separately oversampling every angle.
+    t = 0;
+    n = 0;
+    loop(4,
+      xv = cubic_interp(hist_x0, hist_x1, hist_x2, hist_x3, t);
+      hv = cubic_interp(hist_h0, hist_h1, hist_h2, hist_h3, t);
+      add_phase_point(base_x, base_h, base_r2, xv, hv);
+      t += 0.25;
+      n += 1;
+    );
+  );
+
+  function score_angle(base_x, base_h, c, s)
+    local(i, v, peak)
+  (
+    i = 0;
+    peak = 0;
+    loop(PHASE_BINS,
+      v = abs(base_x[i]*c + base_h[i]*s);
+      v > peak ? peak = v;
+      i += 1;
+    );
+    peak;
+  );
+
+  function find_best_angle(base_x, base_h)
+    local(i, peak)
+  (
+    result_peak = HUGE_PEAK;
+    result_angle = 0;
+    i = 0;
+    loop(CANDIDATES,
+      peak = score_angle(base_x, base_h, candidate_cos[i], candidate_sin[i]);
+      peak < result_peak ? (
+        result_peak = peak;
+        result_angle = -90 + i*ANGLE_STEP;
+      );
+      i += 1;
+    );
+  );
+
+  function transition_is_safe(base_x, base_h, from_angle, delta, current_peak)
+    local(step, angle, rad, peak, safe)
+  (
+    // Validate the entire proposed slow move, not only its destination. This
+    // prevents an otherwise useful target from creating a larger inter-sample
+    // peak while the cosine transition passes through intermediate angles.
+    safe = 1;
+    step = 1;
+    loop(TRANSITION_CHECK_STEPS,
+      angle = from_angle +
+        delta*step/TRANSITION_CHECK_STEPS;
+      rad = angle*$pi/180;
+      peak = score_angle(base_x, base_h, cos(rad), sin(rad));
+      peak > current_peak*TRANSITION_MAX_RATIO ? safe = 0;
+      step += 1;
+    );
+    safe;
+  );
+
+  function calculate_learning_result()
+    local(input_peak)
+  (
+    find_best_angle(learn_bin_x, learn_bin_h);
+    input_peak = score_angle(learn_bin_x, learn_bin_h, 1, 0);
+    result_peak < HUGE_PEAK && input_peak > EPS_PEAK ? (
+      learned_angle = result_angle;
+      headroom_recovered = max(0, 20*log(input_peak/max(result_peak, EPS_DIV))/log(10));
+      analysed_seconds = learn_sample_count / srate;
+      slider_automate(learned_angle);
+      slider_automate(headroom_recovered);
+      slider_automate(analysed_seconds);
+
+      // An offline stem render uses a separate processing instance, so its
+      // slider state is not returned to the live temporary FX. Publish the
+      // completed result for the one-shot companion ReaScript instead.
+      gmem[1] = learned_angle;
+      gmem[2] = headroom_recovered;
+      gmem[3] = analysed_seconds;
+      gmem[0] += 1;
+    );
+  );
+
+  function choose_adaptive_target()
+    local(current_rad, current_peak, input_peak, improvement_db, delta,
+          old_program_peak, meaningful, agrees, proposed_delta)
+  (
+    find_best_angle(adapt_bin_x, adapt_bin_h);
+
+    current_rad = current_angle * $pi / 180;
+    current_peak = score_angle(adapt_bin_x, adapt_bin_h,
+                               cos(current_rad), sin(current_rad));
+    input_peak = score_angle(adapt_bin_x, adapt_bin_h, 1, 0);
+
+    old_program_peak = program_peak;
+    program_peak = max(input_peak, program_peak * 0.98);
+    meaningful = input_peak > EPS_GATE &&
+                 (old_program_peak <= EPS_GATE || input_peak >= old_program_peak*0.25);
+
+    improvement_db = current_peak > EPS_PEAK ?
+      20*log(current_peak/max(result_peak, EPS_DIV))/log(10) : 0;
+    headroom_recovered = max(0, improvement_db);
+    // Runtime headroom is diagnostic only. Notifying the host here would
+    // create an automation/project-state change every adaptive window.
+
+    delta = shortest_peak_angle_delta(current_angle, result_angle);
+
+    cooldown_windows > 0 ? (
+      cooldown_windows -= 1;
+      pending_windows = 0;
+    ) : meaningful && improvement_db >= MIN_IMPROVEMENT_DB &&
+        abs(delta) >= 0.125 ? (
+      agrees = pending_windows > 0 &&
+        delta*pending_delta > 0 &&
+        abs(delta-pending_delta) <= TARGET_AGREEMENT_DEGREES;
+      agrees ? (
+        pending_windows += 1;
+        pending_delta = delta;
+      ) : (
+        pending_windows = 1;
+        pending_delta = delta;
+      );
+
+      pending_windows >= CONSISTENT_WINDOWS ? (
+        proposed_delta =
+          (delta < 0 ? -1 : 1)*min(abs(delta), MAX_MOVE_DEGREES);
+        transition_is_safe(
+          adapt_bin_x, adapt_bin_h, current_angle,
+          proposed_delta, current_peak) ? (
+            ramp_start_angle = current_angle;
+            ramp_delta = proposed_delta;
+            ramp_position = 0;
+            ramp_active = 1;
+            pending_windows = 0;
+            cooldown_windows = COOLDOWN_AFTER_MOVE;
+        );
+      );
+    ) : (
+      // Low-level, silent, breath-only, or contradictory material never pulls
+      // toward the learned baseline. It simply leaves the current state alone.
+      pending_windows = max(0, pending_windows - 1);
+    );
+  );
+
+  function reset_processing()
+    local(i, angle_rad)
+  (
+    memset(fft_buf0, 0, 2*FFT_SIZE);
+    memset(fft_buf1, 0, 2*FFT_SIZE);
+    memset(raw_delay, 0, FFT_SIZE + 2);
+    memset(ring_x, 0, ring_size);
+    memset(ring_h, 0, ring_size);
+    clear_bins(adapt_bin_x, adapt_bin_h, adapt_bin_r2);
+
+    fft_pos = 0;
+    raw_write = 0;
+    ring_write = 0;
+    ring_filled = 0;
+    adaptive_sample_count = 0;
+    history_count = 0;
+    hist_x0 = hist_x1 = hist_x2 = hist_x3 = 0;
+    hist_h0 = hist_h1 = hist_h2 = hist_h3 = 0;
+    program_peak = 0;
+    ramp_active = 0;
+    ramp_position = 0;
+    pending_windows = 0;
+    pending_delta = 0;
+    cooldown_windows = 0;
+
+    analysis_capture ? (
+      current_angle = 0;
+    ) : mode == 0 || mode == 2 ? (
+      current_angle = learned_angle;
+    ) : (
+      current_angle = slider3;
+    );
+
+    held_cos = cos(current_angle*$pi/180);
+    held_sin = sin(current_angle*$pi/180);
+    slider3 = wrap_display_angle(current_angle);
+    sliderchange(slider3);
+  );
+
+  // Analysis state is deliberately separate from runtime reset state so a
+  // transport discontinuity cannot erase a completed offline learning pass.
+  function reset_learning()
+  (
+    clear_bins(learn_bin_x, learn_bin_h, learn_bin_r2);
+    learn_sample_count = 0;
+    learn_update_count = 0;
+    analysed_seconds = 0;
+    headroom_recovered = 0;
+    sliderchange(analysed_seconds);
+    sliderchange(headroom_recovered);
+  );
+
+  // Half-window used by the stock REAPER-style FFT overlap/add rotator.
+  w = 2*$pi/FFT_SIZE;
+  i = 0;
+  loop(HALF_FFT,
+    window[i] = 0.42 - 0.50*cos(i*w) + 0.08*cos(2*i*w);
+    i += 1;
+  );
+
+  i = 0;
+  loop(CANDIDATES,
+    angle_rad = (-90 + i*ANGLE_STEP) * $pi / 180;
+    candidate_cos[i] = cos(angle_rad);
+    candidate_sin[i] = sin(angle_rad);
+    i += 1;
+  );
+
+  // Leave enough render tail for the last learning solve after the selection.
+  ext_tail_size = LEARN_UPDATE_SAMPLES + FFT_SIZE;
+  pdc_bot_ch = 0;
+  pdc_top_ch = 2;
+  last_mode = -1;
+  last_capture = -1;
+  last_learned_angle = HUGE_PEAK;
+  reset_learning();
+  reset_processing();
+
+@slider
+
+  mode_changed = mode != last_mode;
+  capture_changed = analysis_capture != last_capture;
+  learned_changed = learned_angle != last_learned_angle;
+
+  capture_changed && analysis_capture ? reset_learning();
+
+  mode_changed || capture_changed ||
+  (learned_changed && (mode == 0 || mode == 2)) ? reset_processing();
+
+  analysis_capture || mode == 0 ? (
+    pdc_delay = FFT_SIZE;
+  ) : (
+    pdc_delay = FFT_SIZE + lookahead_samples;
+  );
+
+  last_mode = mode;
+  last_capture = analysis_capture;
+  last_learned_angle = learned_angle;
+
+@sample
+
+  input_sample = spl0;
+
+  // Delay the unrotated signal so it aligns with the FFT Hilbert output.
+  raw_delay[raw_write] = input_sample;
+  raw_read = raw_write - FFT_SIZE;
+  raw_read < 0 ? raw_read += FFT_SIZE + 2;
+  aligned_x = raw_delay[raw_read];
+  raw_write += 1;
+  raw_write >= FFT_SIZE + 2 ? raw_write = 0;
+
+  // Generate a 90-degree quadrature signal using an FFT overlap/add Hilbert
+  // transform. DC and Nyquist are removed from the quadrature path.
+  fft_pos >= FFT_SIZE ? (
+    tmp = fft_buf0;
+    fft_buf0 = fft_buf1;
+    fft_buf1 = tmp;
+
+    fft(fft_buf0, FFT_SIZE);
+    fft_permute(fft_buf0, FFT_SIZE);
+
+    fft_buf0[0] = 0;
+    fft_buf0[1] = 0;
+    fft_buf0[FFT_SIZE] = 0;
+    fft_buf0[FFT_SIZE + 1] = 0;
+
+    k = 1;
+    loop(HALF_FFT - 1,
+      a = 2*k;
+      re = fft_buf0[a];
+      im = fft_buf0[a+1];
+      fft_buf0[a] = im;
+      fft_buf0[a+1] = -re;
+
+      a = 2*(FFT_SIZE-k);
+      re = fft_buf0[a];
+      im = fft_buf0[a+1];
+      fft_buf0[a] = -im;
+      fft_buf0[a+1] = re;
+      k += 1;
+    );
+
+    fft_ipermute(fft_buf0, FFT_SIZE);
+    ifft(fft_buf0, FFT_SIZE);
+    fft_pos = 0;
+  );
+
+  w1 = window[fft_pos/2];
+  w2 = window[(FFT_SIZE-fft_pos)/2-1];
+  window_scale = (w1+w2)*FFT_SIZE;
+
+  aligned_h = (fft_buf0[fft_pos] +
+               fft_buf1[FFT_SIZE+fft_pos]) / max(window_scale, EPS_DIV);
+
+  fft_buf0[fft_pos] = w1*input_sample;
+  fft_buf0[fft_pos+1] = 0;
+  fft_buf1[FFT_SIZE+fft_pos] = w2*input_sample;
+  fft_buf1[FFT_SIZE+fft_pos+1] = 0;
+  fft_pos += 2;
+
+  // Maintain four samples for 4x cubic true-peak analysis.
+  hist_x0 = hist_x1;
+  hist_x1 = hist_x2;
+  hist_x2 = hist_x3;
+  hist_x3 = aligned_x;
+  hist_h0 = hist_h1;
+  hist_h1 = hist_h2;
+  hist_h2 = hist_h3;
+  hist_h3 = aligned_h;
+  history_count += 1;
+
+  analysis_capture ? (
+    history_count >= 4 ? add_oversampled_interval(
+      learn_bin_x, learn_bin_h, learn_bin_r2);
+
+    learn_sample_count += 1;
+    learn_update_count += 1;
+    learn_update_count >= LEARN_UPDATE_SAMPLES ? (
+      calculate_learning_result();
+      learn_update_count = 0;
+    );
+
+    output_sample = aligned_x;
+  ) : mode == 0 ? (
+    // Learned fixed rotation. The stock manual rotator remains available for
+    // manual use; this path exists only to apply an offline learned result.
+    current_angle = learned_angle;
+    held_cos = cos(current_angle*$pi/180);
+    held_sin = sin(current_angle*$pi/180);
+    output_sample = aligned_x*held_cos + aligned_h*held_sin;
+  ) : (
+    // Accumulate the future frame that will be output after the 764 ms delay.
+    history_count >= 4 ? add_oversampled_interval(
+      adapt_bin_x, adapt_bin_h, adapt_bin_r2);
+    adaptive_sample_count += 1;
+
+    ring_x[ring_write] = aligned_x;
+    ring_h[ring_write] = aligned_h;
+
+    read_index = ring_write - lookahead_samples;
+    read_index < 0 ? read_index += ring_size;
+    delayed_x = ring_x[read_index];
+    delayed_h = ring_h[read_index];
+
+    ring_write += 1;
+    ring_write >= ring_size ? ring_write = 0;
+    ring_filled = min(ring_filled + 1, lookahead_samples + 1);
+
+    adaptive_sample_count >= lookahead_samples ? (
+      choose_adaptive_target();
+      clear_bins(adapt_bin_x, adapt_bin_h, adapt_bin_r2);
+      adaptive_sample_count = 0;
+    );
+
+    ramp_active ? (
+      ramp_u = min(1, ramp_position/lookahead_samples);
+      ramp_shape = 0.5 - 0.5*cos($pi*ramp_u);
+      render_angle = ramp_start_angle + ramp_delta*ramp_shape;
+      render_rad = render_angle*$pi/180;
+      render_cos = cos(render_rad);
+      render_sin = sin(render_rad);
+      output_sample = delayed_x*render_cos + delayed_h*render_sin;
+
+      ramp_position += 1;
+      ramp_position >= lookahead_samples ? (
+        current_angle = ramp_start_angle + ramp_delta;
+        held_cos = cos(current_angle*$pi/180);
+        held_sin = sin(current_angle*$pi/180);
+        ramp_active = 0;
+      );
+    ) : (
+      output_sample = delayed_x*held_cos + delayed_h*held_sin;
+    );
+  );
+
+  display_update += 1;
+  display_update >= 1024 ? (
+    slider3 = wrap_display_angle(ramp_active ?
+      ramp_start_angle + ramp_delta*(0.5-0.5*cos($pi*min(1, ramp_position/lookahead_samples))) :
+      current_angle);
+    sliderchange(slider3);
+    display_update = 0;
+  );
+
+  spl0 = output_sample;
+  spl1 = output_sample;
+
+@gfx 440 112
+
+  gfx_set(0.075, 0.085, 0.10, 1);
+  gfx_rect(0, 0, gfx_w, gfx_h, 1);
+
+  gfx_setfont(1, "Arial", 22);
+  gfx_set(0.94, 0.95, 0.97, 1);
+  gfx_x = 18;
+  gfx_y = 14;
+  gfx_drawstr("Adaptive Phase Rotator");
+
+  gfx_setfont(1, "Arial", 17);
+  gfx_set(0.38, 0.72, 0.94, 1);
+  gfx_x = 18;
+  gfx_y = 51;
+  sprintf(#current_readout, "Current angle:  %+.2f deg", slider3);
+  gfx_drawstr(#current_readout);
+
+  gfx_setfont(1, "Arial", 14);
+  gfx_set(0.65, 0.69, 0.75, 1);
+  gfx_x = 235;
+  gfx_y = 54;
+  sprintf(#learned_readout, "Learned start:  %+.2f deg", learned_angle);
+  gfx_drawstr(#learned_readout);
+
+  gfx_x = 18;
+  gfx_y = 83;
+  mode == 0 ? (
+    gfx_set(0.65, 0.69, 0.75, 1);
+    gfx_drawstr("Holding learned angle");
+  ) : ramp_active ? (
+    gfx_set(0.49, 0.82, 0.58, 1);
+    gfx_drawstr("Transitioning");
+  ) : pending_windows > 0 ? (
+    gfx_set(0.78, 0.72, 0.42, 1);
+    gfx_drawstr("Checking consistent peak evidence");
+  ) : (
+    gfx_set(0.65, 0.69, 0.75, 1);
+    gfx_drawstr("Holding - waiting for useful peak evidence");
+  );
