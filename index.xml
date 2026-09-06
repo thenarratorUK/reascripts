@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<index version="1" name="thenarratorUK ReaScripts" commit="0594b63e005af1eaebe750cca0fba1f1a5161cac">
+<index version="1" name="thenarratorUK ReaScripts" commit="5dab56d2d89983fa8bd8024c5323690a105ded4a">
   <category name="Plugins">
     <reapack name="Adaptive Phase Rotator.jsfx" type="effect" desc="Adaptive Phase Rotator">
       <version name="0.3.0" author="David Winter" time="2026-09-06T18:50:50Z">
@@ -88,8 +88,8 @@
       </version>
     </reapack>
     <reapack name="Build_and_Update_from_Sources.lua" type="script" desc="Build &amp; Update from ./Sources CSV (fully explained inline; variable placeholders; A/B routes)">
-      <version name="3.3" author="David Winter" time="2026-04-17T19:52:02Z">
-        <source main="main">https://github.com/thenarratorUK/reascripts/raw/294314dba877f5aaf60933fa0d09f2755f29aeea/Build_and_Update_from_Sources.lua</source>
+      <version name="3.4" author="David Winter" time="2026-09-06T21:38:45Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/5dab56d2d89983fa8bd8024c5323690a105ded4a/Build_and_Update_from_Sources.lua</source>
       </version>
     </reapack>
     <reapack name="Bulk Import Pozotron Pickups.lua" type="script" desc="Import multiple CSV marker files, align them to their corresponding regions, set project start time, and apply marker colors">
@@ -103,8 +103,8 @@
       </version>
     </reapack>
     <reapack name="Chapter Region Maker.eel" type="script" desc="Chapter Maker">
-      <version name="2.9" author="David Winter" time="2026-04-17T19:52:02Z">
-        <source main="main">https://github.com/thenarratorUK/reascripts/raw/294314dba877f5aaf60933fa0d09f2755f29aeea/Chapter%20Region%20Maker.eel</source>
+      <version name="3.0" author="David Winter" time="2026-09-06T21:38:45Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/5dab56d2d89983fa8bd8024c5323690a105ded4a/Chapter%20Region%20Maker.eel</source>
       </version>
     </reapack>
     <reapack name="Character Take Report.lua" type="script" desc="Track Item / Rejected / Active Take Summary">
@@ -203,8 +203,8 @@
       </version>
     </reapack>
     <reapack name="Create Voice Reference Placeholders.lua" type="script" desc="Voice Reference Setup (Gap via Ripple + 40119), then Insert Placeholders">
-      <version name="2.0" author="David Winter" time="2026-04-17T19:52:02Z">
-        <source main="main">https://github.com/thenarratorUK/reascripts/raw/294314dba877f5aaf60933fa0d09f2755f29aeea/Create%20Voice%20Reference%20Placeholders.lua</source>
+      <version name="2.1" author="David Winter" time="2026-09-06T21:38:45Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/5dab56d2d89983fa8bd8024c5323690a105ded4a/Create%20Voice%20Reference%20Placeholders.lua</source>
       </version>
     </reapack>
     <reapack name="Decrease Peak Display.lua" type="script" desc="Decrease Peak Display">
@@ -277,14 +277,9 @@
         <source main="main">https://github.com/thenarratorUK/reascripts/raw/294314dba877f5aaf60933fa0d09f2755f29aeea/Move%20Items%20to%20Named%20Track.lua</source>
       </version>
     </reapack>
-    <reapack name="Multicast Ripple Punch In (Sends Version).lua" type="script" desc="Ripple Punch-In (Placeholder-Aware Toggle)">
-      <version name="1.6" author="David Winter" time="2026-04-17T19:52:02Z">
-        <source main="main">https://github.com/thenarratorUK/reascripts/raw/294314dba877f5aaf60933fa0d09f2755f29aeea/Multicast%20Ripple%20Punch%20In%20%28Sends%20Version%29.lua</source>
-      </version>
-    </reapack>
     <reapack name="Multicast Ripple Punch In.lua" type="script" desc="Ripple Punch-In (Placeholder-Aware Toggle)">
-      <version name="1.6" author="David Winter" time="2026-04-17T19:52:02Z">
-        <source main="main">https://github.com/thenarratorUK/reascripts/raw/294314dba877f5aaf60933fa0d09f2755f29aeea/Multicast%20Ripple%20Punch%20In.lua</source>
+      <version name="1.7" author="David Winter" time="2026-09-06T21:38:45Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/5dab56d2d89983fa8bd8024c5323690a105ded4a/Multicast%20Ripple%20Punch%20In.lua</source>
       </version>
     </reapack>
     <reapack name="Multicast TIghten Tail before Punch.lua" type="script" desc="Multicast TIghten Tail before Punch">
@@ -373,8 +368,8 @@
       </version>
     </reapack>
     <reapack name="Ripple Punch-In.lua" type="script" desc="Ripple Punch-In">
-      <version name="1.0" author="David Winter" time="2026-04-17T19:52:02Z">
-        <source main="main">https://github.com/thenarratorUK/reascripts/raw/294314dba877f5aaf60933fa0d09f2755f29aeea/Ripple%20Punch-In.lua</source>
+      <version name="1.1" author="David Winter" time="2026-09-06T21:38:45Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/5dab56d2d89983fa8bd8024c5323690a105ded4a/Ripple%20Punch-In.lua</source>
       </version>
     </reapack>
     <reapack name="Script Sync Add Pickup Region.lua" type="script" desc="Add Script Sync pickup regions, focus the active audio track, and report source timing">
@@ -399,8 +394,8 @@
       </version>
     </reapack>
     <reapack name="Smart Ripple Insert Punch and Roll.eel" type="script" desc="Smart Ripple Insert Punch and Roll">
-      <version name="1.0" author="David Winter" time="2026-04-17T19:52:02Z">
-        <source main="main">https://github.com/thenarratorUK/reascripts/raw/294314dba877f5aaf60933fa0d09f2755f29aeea/Smart%20Ripple%20Insert%20Punch%20and%20Roll.eel</source>
+      <version name="1.1" author="David Winter" time="2026-09-06T21:38:45Z">
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/5dab56d2d89983fa8bd8024c5323690a105ded4a/Smart%20Ripple%20Insert%20Punch%20and%20Roll.eel</source>
       </version>
     </reapack>
     <reapack name="Split Interview Audio.lua" type="script" desc="Mutually exclusive comp: mute Track 1 wherever Track 2 has items">
