@@ -2,7 +2,7 @@
 
 Index of the scripts currently published in this repository. The ReaPack `index.xml` is the install manifest; this file is the plain-language reference.
 
-Total public scripts indexed: 78
+Total public scripts indexed: 77
 
 ## JSFX effects
 
@@ -43,11 +43,10 @@ Total public scripts indexed: 78
 | --- | --- | --- |
 | `Ripple Insert Start.lua` | Starts a ripple-insert recording pass by splitting at the cursor, creating space, and recording. | Used by punch helpers. |
 | `Ripple Insert End.lua` | Ends a ripple-insert recording pass and closes the inserted gap. | Used by punch helpers. |
-| `Ripple Punch-In.lua` | Runs Ripple Insert Start when stopped and Ripple Insert End when playing or recording. | Depends on custom action IDs. |
+| `Ripple Punch-In.lua` | Runs Ripple Insert Start when stopped and Ripple Insert End when playing or recording. | Resolves companion scripts by filename. |
 | `Smart Punch and Roll.eel` | Punch-and-roll helper with silence scanning and preroll handling. | EEL version. |
 | `Smart Ripple Insert Punch and Roll.eel` | Silence-aware ripple-insert punch-and-roll helper using the Ripple Insert Start and End actions. | Depends on companion actions. |
 | `Multicast Ripple Punch In.lua` | Placeholder-aware multicast punch-in workflow with next-track selection and automation handling. | Workflow-specific. |
-| `Multicast Ripple Punch In (Sends Version).lua` | Send-based variant of the multicast punch-in workflow. | Workflow-specific. |
 | `Multicast TIghten Tail before Punch.lua` | Trims excess silence from the previous item before a multicast punch. | Used by multicast punch-in. |
 | `Pause Start.lua` | Finds and stores the practical start point of a pause from the selected time range. | Part one of two-script pause trimming. |
 | `Pause End.lua` | Finds the pause end, removes the pause with ripple editing, and clears stored pause points. | Part two of two-script pause trimming. |

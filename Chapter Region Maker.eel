@@ -1,11 +1,11 @@
 // @description Chapter Maker
-// @version 2.9
+// @version 3.0
 // @author David Winter
 /**
  * ReaScript Name: Chapter Maker
  * Author: David Winter
  * REAPER: 7.0
- * Version: 2.9
+ * Version: 3.0
  */
 
 usrconfig = 0; // 1 = display a prompt window at script run
@@ -16,15 +16,56 @@ auto_select_same_track_only = 0; // 1 = in auto single-item mode, select only it
 trim_edges_by_time = 1;         // 1 = choose trim edge items by timeline (min start / max end) rather than selection index
 // ------------------------------------------------------------
 
+// Resolve a companion by filename, checking the current script directory,
+// the root Scripts directory, and ReaPack's repository subfolder. This avoids
+// path-derived _RS IDs and works on both macOS and Windows.
+function ResolveCompanionScript(filename) local(
+  i, c, last_sep, command_id, section_id, current_cmd, mode, resolution, val
+)(
+  command_id = 0;
+  get_action_context(#RSR_caller_path, section_id, current_cmd, mode, resolution, val, #RSR_context);
 
-// Command ID for "Copy Automation from First Item in Solo or Child Tracks to Later Items"
-Copy_Automation = NamedCommandLookup("_RS694b14720aff383b3efa2aab05f97f31cfc88b63");
+  last_sep = -1;
+  i = 0;
+  loop(strlen(#RSR_caller_path),
+    c = str_getchar(#RSR_caller_path, i);
+    (c == 47 || c == 92) ? last_sep = i;
+    i += 1;
+  );
 
-// Command ID for your "Close Gaps in Room Tone" script
-Close_Gaps_RoomTone = NamedCommandLookup("_RS28f8949146665d34f1478d8e6e233cb2d2e64719");
+  last_sep >= 0 ? (
+    strcpy_substr(#RSR_target_path, #RSR_caller_path, 0, last_sep + 1);
+    strcat(#RSR_target_path, filename);
+    command_id = AddRemoveReaScript(1, 0, #RSR_target_path, 1);
+  );
 
-// Command ID for your "Reset Character FX Tracks and Sends" script
-Global_Reset = NamedCommandLookup("_RS717452610c79955f32bf0f877f52250c83b69757");
+  command_id == 0 ? (
+    GetResourcePath(#RSR_resource_path);
+    sprintf(#RSR_target_path, "%s/Scripts/%s", #RSR_resource_path, filename);
+    command_id = AddRemoveReaScript(1, 0, #RSR_target_path, 1);
+  );
+  command_id == 0 ? (
+    sprintf(#RSR_target_path, "%s/Scripts/thenarratorUK ReaScripts/Scripts/%s", #RSR_resource_path, filename);
+    command_id = AddRemoveReaScript(1, 0, #RSR_target_path, 1);
+  );
+  command_id == 0 ? (
+    sprintf(#RSR_target_path, "%s/Scripts/thenarratorUK ReaScripts/%s", #RSR_resource_path, filename);
+    command_id = AddRemoveReaScript(1, 0, #RSR_target_path, 1);
+  );
+
+  command_id;
+);
+
+Copy_Automation = ResolveCompanionScript("Copy Automation from First Item in Solo or Child Tracks to Later Items.lua");
+Close_Gaps_RoomTone = ResolveCompanionScript("Close Gaps in Room Tone.lua");
+Global_Reset = ResolveCompanionScript("Reset Character FX Tracks and Sends.lua");
+
+(Copy_Automation == 0 || Close_Gaps_RoomTone == 0 || Global_Reset == 0) ? (
+  ShowMessageBox(
+    "One or more companion ReaScripts could not be located or registered. Optional follow-up actions will be skipped.",
+    "Chapter Maker", 0
+  );
+);
 
 // Defaults
 #start_threshold = "-30";        // dB threshold for the detection at the start of the chapter

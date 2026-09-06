@@ -1,5 +1,5 @@
 // @description Smart Ripple Insert Punch and Roll
-// @version 1.0
+// @version 1.1
 // @author David Winter
 // Smart Ripple Insert Punch and Roll (EEL, Silence-Aware)
 //
@@ -40,6 +40,7 @@ g_preview_end_time    = 0;
 g_preview_active      = 0;
 
 RI_START_CMD = 0; // command ID for Ripple Insert Start script
+RI_END_CMD = 0;   // command ID for Ripple Insert End script
 
 // ExtState section/key used by Ripple Insert Placeholder to remember the track
 PH_SECTION = "DW_RippleInsertPlaceholder";
@@ -53,6 +54,44 @@ PH_KEY_LAST_TRACK_GUID = "LastRecordedTrackGUID";
 // Global for delayed pre-roll restore
 t0 = 0;
 g_saved_preroll = 0;
+
+// Resolve a companion by filename instead of storing its path-derived _RS ID.
+function ResolveCompanionScript(filename) local(
+  i, c, last_sep, command_id, section_id, current_cmd, mode, resolution, val
+)(
+  command_id = 0;
+  get_action_context(#RSR_caller_path, section_id, current_cmd, mode, resolution, val, #RSR_context);
+
+  last_sep = -1;
+  i = 0;
+  loop(strlen(#RSR_caller_path),
+    c = str_getchar(#RSR_caller_path, i);
+    (c == 47 || c == 92) ? last_sep = i;
+    i += 1;
+  );
+
+  last_sep >= 0 ? (
+    strcpy_substr(#RSR_target_path, #RSR_caller_path, 0, last_sep + 1);
+    strcat(#RSR_target_path, filename);
+    command_id = AddRemoveReaScript(1, 0, #RSR_target_path, 1);
+  );
+
+  command_id == 0 ? (
+    GetResourcePath(#RSR_resource_path);
+    sprintf(#RSR_target_path, "%s/Scripts/%s", #RSR_resource_path, filename);
+    command_id = AddRemoveReaScript(1, 0, #RSR_target_path, 1);
+  );
+  command_id == 0 ? (
+    sprintf(#RSR_target_path, "%s/Scripts/thenarratorUK ReaScripts/Scripts/%s", #RSR_resource_path, filename);
+    command_id = AddRemoveReaScript(1, 0, #RSR_target_path, 1);
+  );
+  command_id == 0 ? (
+    sprintf(#RSR_target_path, "%s/Scripts/thenarratorUK ReaScripts/%s", #RSR_resource_path, filename);
+    command_id = AddRemoveReaScript(1, 0, #RSR_target_path, 1);
+  );
+
+  command_id;
+);
 
 // -----------------------------------------------------------------------------
 // Utility: dBFS → linear
@@ -395,6 +434,17 @@ function SmartPR_PreviewLoop() local(playState, now)(
 // MAIN
 // -----------------------------------------------------------------------------
 
+RI_START_CMD = ResolveCompanionScript("Ripple Insert Start.lua");
+RI_END_CMD = ResolveCompanionScript("Ripple Insert End.lua");
+dependencies_ready = RI_START_CMD != 0 && RI_END_CMD != 0;
+
+dependencies_ready == 0 ? (
+  ShowMessageBox("Could not locate or register Ripple Insert Start/End.",
+                 "Smart Ripple Insert Punch and Roll", 0);
+);
+
+dependencies_ready ? (
+
 #RI_guid_str = "";
 GetExtState(#RI_guid_str, PH_SECTION, PH_KEY_LAST_TRACK_GUID);
 strlen(#RI_guid_str) > 0 ? (
@@ -408,7 +458,7 @@ Undo_BeginBlock();
 
 playState = GetPlayState();
 playState > 0 ? (
-  Main_OnCommand(NamedCommandLookup("_RS6cca0e2eccfc3cbd563bf061c39b9a4e540c0382"), 0);
+  Main_OnCommand(RI_END_CMD, 0);
   basePos = GetCursorPosition();
   target_track = GetTargetTrack();
   newPos = FindPunchInTime(basePos, target_track);
@@ -462,9 +512,6 @@ haveInsertEndPos == 1 ? (
   g_preview_punch_pos   = splitPos;       // punch-in point is where we split
   g_preview_preRollOrig = preRollOrig;
 
-  // Cache the Ripple Insert Start command ID for use in the deferred loop
-  RI_START_CMD = NamedCommandLookup("_RS65a3b3b1e39ff25c5c9bd0d1967b3892461cff42");
-
   // No preview playback now: go straight to the punch point
   SetEditCurPos(g_preview_punch_pos, 0, 0);
 
@@ -478,3 +525,4 @@ haveInsertEndPos == 1 ? (
 );
 
 Undo_EndBlock("Smart Ripple Insert Punch and Roll (EEL, Silence-Aware)", -1);
+);

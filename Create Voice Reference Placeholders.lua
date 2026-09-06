@@ -1,6 +1,6 @@
 -- @author David Winter
 -- @description Voice Reference Setup (Gap via Ripple + 40119), then Insert Placeholders
--- @version 2.0
+-- @version 2.1
 
 ------------------------------------------------------------
 -- USER SETTINGS
@@ -31,7 +31,7 @@ local MAX_NUDGES = 200000  -- safety cap
 
 -- After creating the gap, run your room-tone gap closer:
 local RUN_ROOMTONE_CLOSE_GAPS = true
-local ROOMTONE_CLOSE_GAPS_CMD = "_RS28f8949146665d34f1478d8e6e233cb2d2e64719"
+local ROOMTONE_CLOSE_GAPS_SCRIPT = "Close Gaps in Room Tone.lua"
 
 local DEBUG_TO_CONSOLE = false
 
@@ -44,6 +44,34 @@ end
 
 local function trim(s) return (s:gsub("^%s+", ""):gsub("%s+$", "")) end
 local function lower(s) return (s and s:lower()) or "" end
+
+local function resolve_reascript(filename)
+  local sep = package.config:sub(1, 1)
+  local resource_path = reaper.GetResourcePath()
+  local _, caller_path = reaper.get_action_context()
+  local caller_dir = caller_path and caller_path:match("^(.*[\\/])") or ""
+  local candidates = {}
+
+  if caller_dir ~= "" then candidates[#candidates + 1] = caller_dir .. filename end
+  candidates[#candidates + 1] = resource_path .. sep .. "Scripts" .. sep .. filename
+  candidates[#candidates + 1] = resource_path .. sep .. "Scripts" .. sep ..
+    "thenarratorUK ReaScripts" .. sep .. "Scripts" .. sep .. filename
+  candidates[#candidates + 1] = resource_path .. sep .. "Scripts" .. sep ..
+    "thenarratorUK ReaScripts" .. sep .. filename
+
+  local seen = {}
+  for _, path in ipairs(candidates) do
+    if path and not seen[path] then
+      seen[path] = true
+      if reaper.file_exists(path) then
+        local command_id = reaper.AddRemoveReaScript(true, 0, path, true)
+        if command_id ~= 0 then return command_id end
+      end
+    end
+  end
+
+  return 0
+end
 
 local function count_words(s)
   s = trim(s or "")
@@ -402,11 +430,11 @@ local function main()
 
   -- Run your room tone close-gaps script (optional)
   if SHIFT_MODE == "auto" and RUN_ROOMTONE_CLOSE_GAPS then
-    local cmd = reaper.NamedCommandLookup(ROOMTONE_CLOSE_GAPS_CMD)
+    local cmd = resolve_reascript(ROOMTONE_CLOSE_GAPS_SCRIPT)
     if cmd and cmd ~= 0 then
       reaper.Main_OnCommand(cmd, 0)
     else
-      reaper.MB("Could not find the room-tone close-gaps script:\n" .. ROOMTONE_CLOSE_GAPS_CMD, "Voice Reference Setup", 0)
+      reaper.MB("Could not find the room-tone close-gaps script:\n" .. ROOMTONE_CLOSE_GAPS_SCRIPT, "Voice Reference Setup", 0)
     end
   end
 

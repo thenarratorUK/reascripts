@@ -1,10 +1,10 @@
 -- @description Ripple Punch-In (Placeholder-Aware Toggle)
--- @version 1.6
+-- @version 1.7
 -- @author David Winter
 --[[
   ReaScript Name : Ripple Punch-In (Placeholder-Aware Toggle)
   Author         : David Winter
-  Version        : 1.6
+  Version        : 1.7
 
   Behaviour
   ---------
@@ -37,10 +37,12 @@
 ]]
 
 ------------------------------------------------------------
--- CONFIG: Update these with your actual custom action IDs
+-- Companion scripts are resolved from their paths at runtime.
 ------------------------------------------------------------
-local RIPPLE_INSERT_START_ID = "_RS65a3b3b1e39ff25c5c9bd0d1967b3892461cff42"
-local RIPPLE_INSERT_END_ID   = "_RS6cca0e2eccfc3cbd563bf061c39b9a4e540c0382"
+local RIPPLE_INSERT_START_SCRIPT = "Ripple Insert Start.lua"
+local RIPPLE_INSERT_END_SCRIPT   = "Ripple Insert End.lua"
+local TIGHTEN_TAIL_SCRIPT        = "Multicast TIghten Tail before Punch.lua"
+local GLOBAL_RESET_SCRIPT        = "Reset Character FX Tracks and Sends.lua"
 
 -- Pre-roll (measures) to use during Ripple Insert Start
 local PREROLLMEAS_DURING_INSERT = 0.175
@@ -51,6 +53,34 @@ local PREROLLMEAS_DURING_INSERT = 0.175
 -- Toggle: set to false if you want to disable per-segment FX automation updates
 local FX_UPDATE = true
 local TOL = 1e-6
+
+local function resolve_reascript(filename)
+    local sep = package.config:sub(1, 1)
+    local resource_path = reaper.GetResourcePath()
+    local _, caller_path = reaper.get_action_context()
+    local caller_dir = caller_path and caller_path:match("^(.*[\\/])") or ""
+    local candidates = {}
+
+    if caller_dir ~= "" then candidates[#candidates + 1] = caller_dir .. filename end
+    candidates[#candidates + 1] = resource_path .. sep .. "Scripts" .. sep .. filename
+    candidates[#candidates + 1] = resource_path .. sep .. "Scripts" .. sep ..
+        "thenarratorUK ReaScripts" .. sep .. "Scripts" .. sep .. filename
+    candidates[#candidates + 1] = resource_path .. sep .. "Scripts" .. sep ..
+        "thenarratorUK ReaScripts" .. sep .. filename
+
+    local seen = {}
+    for _, path in ipairs(candidates) do
+        if not seen[path] then
+            seen[path] = true
+            if reaper.file_exists(path) then
+                local command_id = reaper.AddRemoveReaScript(true, 0, path, true)
+                if command_id ~= 0 then return command_id end
+            end
+        end
+    end
+
+    return 0
+end
 
 ------------------------------------------------------------
 -- Pre-roll state (captured at script start)
@@ -812,6 +842,14 @@ end
 local function main()
     local play_state = reaper.GetPlayState()
     local is_recording = (play_state & 4) ~= 0
+    local primary_script = is_recording and RIPPLE_INSERT_END_SCRIPT or RIPPLE_INSERT_START_SCRIPT
+    local primary_cmd = resolve_reascript(primary_script)
+
+    if primary_cmd == 0 then
+        reaper.MB("Could not locate or register companion script:\n\n" .. primary_script,
+            "Multicast Ripple Punch In", 0)
+        return
+    end
 
     if not is_recording then
         ------------------------------------------------------
@@ -821,8 +859,7 @@ local function main()
 
         if not sel_track then
             -- Fallback: just call Ripple Insert Start as-is
-            local start_cmd = reaper.NamedCommandLookup(RIPPLE_INSERT_START_ID)
-            if start_cmd ~= 0 then reaper.Main_OnCommand(start_cmd, 0) end
+            reaper.Main_OnCommand(primary_cmd, 0)
             return
         end
 
@@ -830,8 +867,7 @@ local function main()
         local boundary_pos = find_next_no_item_pos(sel_track, cursor_pos)
         if not boundary_pos then
             -- Fallback: behave like plain Ripple Insert Start
-            local start_cmd = reaper.NamedCommandLookup(RIPPLE_INSERT_START_ID)
-            if start_cmd ~= 0 then reaper.Main_OnCommand(start_cmd, 0) end
+            reaper.Main_OnCommand(primary_cmd, 0)
             return
         end
 
@@ -909,7 +945,7 @@ local function main()
         auto_wipe_all_track_envelopes_from_time(cursor_pos)
         
         -- Tighten tail of previous item before enabling pre-roll / starting punch
-        local tighten_cmd = reaper.NamedCommandLookup("_RScc7a2992f12cbb80648c30e818cf748a1aed74b1")
+        local tighten_cmd = resolve_reascript(TIGHTEN_TAIL_SCRIPT)
         if tighten_cmd ~= 0 then
             reaper.Main_OnCommand(tighten_cmd, 0)
         end
@@ -1022,7 +1058,7 @@ local function main()
                     reaper.SetExtState(TS_EXTSTATE_SECTION, TS_EXTSTATE_KEY, "1", false)
 
                     -- d) Run the reset script
-                    local reset_cmd = reaper.NamedCommandLookup("_RS717452610c79955f32bf0f877f52250c83b69757")
+                    local reset_cmd = resolve_reascript(GLOBAL_RESET_SCRIPT)
                     if reset_cmd ~= 0 then
                         reaper.Main_OnCommand(reset_cmd, 0)
                     end
@@ -1070,10 +1106,7 @@ local function main()
     end
     
     -- Call Ripple Insert Start (splits, inserts space, and starts recording)
-    local start_cmd = reaper.NamedCommandLookup(RIPPLE_INSERT_START_ID)
-    if start_cmd ~= 0 then
-      reaper.Main_OnCommand(start_cmd, 0)
-    end
+    reaper.Main_OnCommand(primary_cmd, 0)
     
     -- Restore original pre-roll value immediately after Ripple Insert Start is called
     if saved_prerollmeas ~= nil and type(reaper.SNM_SetDoubleConfigVar) == "function" then
@@ -1114,10 +1147,7 @@ local function main()
         end
         
     -- End Ripple Insert (cursor ends at record_end)
-    local end_cmd = reaper.NamedCommandLookup(RIPPLE_INSERT_END_ID)
-    if end_cmd ~= 0 then
-        reaper.Main_OnCommand(end_cmd, 0)
-    end
+    reaper.Main_OnCommand(primary_cmd, 0)
 
     local record_end = reaper.GetCursorPosition()
 

@@ -43,22 +43,18 @@ In some flows it also calls:
 
 Also uses SWS preroll helpers when available.
 
-### Multicast Ripple Punch In (Sends Version).lua
-Depends on:
-- `Ripple Insert Start.lua`
-- `Ripple Insert End.lua`
-- `Multicast TIghten Tail before Punch.lua`
-
 ### Index Track GUIDs.lua
 Intended to be used as an SWS project startup action.
 
-## Important Note About Action IDs
-Several workflow scripts call companion scripts via `reaper.NamedCommandLookup("_RS...")` using action IDs from the author's setup.
+## Companion Script Resolution
+Workflow scripts call their companions by filename rather than storing `_RS...`
+action IDs. At runtime they check the caller's directory, the root REAPER
+`Scripts` directory, and the ReaPack repository directory, then use
+`AddRemoveReaScript` to obtain the correct local command ID.
 
-If those lookups fail on your system:
-1. Install the companion scripts from this repo.
-2. Open the dependent script.
-3. Update the `_RS...` IDs in its config section to match your local REAPER action IDs.
+No manual command-ID editing is required on macOS or Windows. Install the
+documented companion scripts; if one is missing, the caller reports it instead
+of running action ID `0`.
 
 ## Folder and Workflow Assumptions
 These scripts are public, but some still assume a narration-oriented project layout:

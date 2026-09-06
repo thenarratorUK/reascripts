@@ -1,10 +1,10 @@
 -- @description Build & Update from ./Sources CSV (fully explained inline; variable placeholders; A/B routes)
--- @version 3.3
+-- @version 3.4
 -- @author David Winter
 --[[
 ReaScript Name  : Build & Update from ./Sources CSV (fully explained inline; variable placeholders; A/B routes)
 Author          : David Winter
-Version         : 3.3 (2025-11-16)
+Version         : 3.4 (2026-09-06)
 
 High-level behaviour: 
 - Exactly one CSV file must exist in <project>/Sources/. If none or more than one: stop with an error.
@@ -76,6 +76,36 @@ local function file_exists(path)
   local f = io.open(path, "rb")
   if f then f:close() return true end
   return false
+end
+
+-- Resolve companion scripts from their real file paths rather than storing a
+-- path-derived _RS command ID. This works for root-level local installs and
+-- ReaPack's repository subfolder on both macOS and Windows.
+local function resolve_reascript(filename)
+  local resource_path = reaper.GetResourcePath()
+  local _, caller_path = reaper.get_action_context()
+  local caller_dir = caller_path and caller_path:match("^(.*[\\/])") or ""
+  local candidates = {}
+
+  if caller_dir ~= "" then candidates[#candidates + 1] = caller_dir .. filename end
+  candidates[#candidates + 1] = join(resource_path, "Scripts" .. SEP .. filename)
+  candidates[#candidates + 1] = join(resource_path,
+    "Scripts" .. SEP .. "thenarratorUK ReaScripts" .. SEP .. "Scripts" .. SEP .. filename)
+  candidates[#candidates + 1] = join(resource_path,
+    "Scripts" .. SEP .. "thenarratorUK ReaScripts" .. SEP .. filename)
+
+  local seen = {}
+  for _, path in ipairs(candidates) do
+    if path and not seen[path] then
+      seen[path] = true
+      if file_exists(path) then
+        local command_id = reaper.AddRemoveReaScript(true, 0, path, true)
+        if command_id ~= 0 then return command_id end
+      end
+    end
+  end
+
+  return 0
 end
 
 -- Enumerate files in 'sources_dir' and pick out those with '.csv' extension.
@@ -1057,9 +1087,12 @@ msg = msg .. "\nTotal items AFTER script: " .. tostring(final_items)
 
 reaper.MB(msg, "DEBUG: Post-state", 0)
 
-local cmd_id = reaper.NamedCommandLookup("_RS28f8949146665d34f1478d8e6e233cb2d2e64719")  -- replace with your script’s command ID
+local cmd_id = resolve_reascript("Close Gaps in Room Tone.lua")
 if cmd_id ~= 0 then
   reaper.Main_OnCommand(cmd_id, 0)
+else
+  reaper.MB("Could not locate or register companion script:\n\nClose Gaps in Room Tone.lua",
+    "Build and Update from Sources", 0)
 end
 
 -- Sanity check: make sure all relevant audio files in ./Sources
