@@ -1,6 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<index version="1" name="thenarratorUK ReaScripts" commit="b99cf35d9bfeba4ef1e0d8ef9c92595ca972ccac">
+<index version="1" name="thenarratorUK ReaScripts" commit="0594b63e005af1eaebe750cca0fba1f1a5161cac">
   <category name="Plugins">
+    <reapack name="Adaptive Phase Rotator.jsfx" type="effect" desc="Adaptive Phase Rotator">
+      <version name="0.3.0" author="David Winter" time="2026-09-06T18:50:50Z">
+        <changelog><![CDATA[Initial public beta. Includes Learn and Hold, Adaptive, and Learn and Adaptive modes, plus the companion time-selection learning action. The learning action requires REAPER 7 and SWS/S&M.]]></changelog>
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/0594b63e005af1eaebe750cca0fba1f1a5161cac/Effects/Adaptive%20Phase%20Rotator/Adaptive%20Phase%20Rotator.jsfx</source>
+        <source type="script" main="main" file="Learn Adaptive Phase Rotator from Time Selection.lua">https://github.com/thenarratorUK/reascripts/raw/0594b63e005af1eaebe750cca0fba1f1a5161cac/Scripts/Adaptive%20Phase%20Rotator/Learn%20Adaptive%20Phase%20Rotator%20from%20Time%20Selection.lua</source>
+      </version>
+    </reapack>
     <reapack name="Adaptive Reference Matcher.jsfx" type="effect" desc="Adaptive EQ with Reference Matching">
       <version name="0.6.0" author="David Winter" time="2026-08-14T14:14:08Z">
         <changelog><![CDATA[Initial public beta for external testing.]]></changelog>
