@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<index version="1" name="thenarratorUK ReaScripts" commit="5dab56d2d89983fa8bd8024c5323690a105ded4a">
+<index version="1" name="thenarratorUK ReaScripts" commit="412f6c0aaeff1dc5776fe8e6b1462ce027160078">
   <category name="Plugins">
     <reapack name="Adaptive Phase Rotator.jsfx" type="effect" desc="Adaptive Phase Rotator">
       <version name="0.3.0" author="David Winter" time="2026-09-06T18:50:50Z">
@@ -17,9 +17,9 @@
       </version>
     </reapack>
     <reapack name="Progressive Serial Compressor.jsfx" type="effect" desc="Serial Compressor">
-      <version name="1.0" author="David Winter" time="2026-08-19T14:05:14Z">
-        <changelog><![CDATA[Initial public beta. Includes linked threshold/knee spacing, two- or three-stage serial processing, staggered timing and lookahead, and manual per-stage controls.]]></changelog>
-        <source main="main">https://github.com/thenarratorUK/reascripts/raw/7ec650f18bbcaf76f8ab7fefca273b8c2beafb64/Effects/Progressive%20Serial%20Compressor/Progressive%20Serial%20Compressor.jsfx</source>
+      <version name="1.0.1" author="David Winter" time="2026-09-07T13:07:38Z">
+        <changelog><![CDATA[Adds numeric Overall and S1/S2/S3 gain-reduction readouts. New reduction peaks update immediately, hold for 750 ms, then step down for easier target checking. Audio compression behaviour is unchanged.]]></changelog>
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/412f6c0aaeff1dc5776fe8e6b1462ce027160078/Effects/Progressive%20Serial%20Compressor/Progressive%20Serial%20Compressor.jsfx</source>
       </version>
     </reapack>
     <reapack name="TriLevelerPro.jsfx" type="effect" desc="TriLeveler Pro">
