@@ -1,7 +1,7 @@
 desc:Adaptive Reference Matcher
 // @description Fixed-anchor adaptive mono narration EQ with 14 embedded references
 // @author David Winter
-// @version 0.6.0
+// @version 0.7.0
 // @about
 //   Branded custom-interface release. Learns and persists a fixed source
 //   anchor, combines linear reference matching with live self-consistency, and
@@ -41,7 +41,7 @@ out_pin:mono output
   // an armed capture before the first playback sample reaches @sample.
   ext_noinit = 1;
 
-  STATE_VERSION = 1;
+  STATE_VERSION = 2;
   FFT_SIZE = 32768;
   LEARN_FFT_HOP = 8192;
   LEARN_HOP_REFERENCE_RATE = 48000;
@@ -68,9 +68,13 @@ out_pin:mono output
   TRIM_PROPORTION = 0.10;
   RANGE_TAPER_OCTAVES = 1;
   MAXIMUM_CORRECTION_Q = 6;
-  MAXIMUM_SMOOTHING_SIGMA_BINS = 13.33;
+  MAXIMUM_SMOOTHING_SIGMA_BINS = 12.7;
+  SMOOTHING_MAPPING_EXPONENT = 2.38;
   CONSISTENCY_STRENGTH_FRACTION = 0.25;
   CONSISTENCY_OUTSIDE_RANGE_SCALE = 0.35;
+  ADAPTIVITY_MAGNITUDE_EXPONENT = 1.74;
+  ADAPTIVE_AVERAGE_SECONDS = 0.02;
+  ADAPTIVE_SETTLING_SECONDS = 0.02;
   LIVE_FULL_SUPPORT_REL_DB = -35;
   LIVE_ZERO_SUPPORT_REL_DB = -55;
   LIVE_GATE_RELEASE_DB_PER_SECOND = 6;
@@ -79,6 +83,13 @@ out_pin:mono output
   PROCESS_FFT_SIZE = 1024;
   PROCESS_PARTITIONS = 32;
   LINEAR_PHASE_DELAY = PROCESS_FIR_SIZE/2;
+  LOUDNESS_BLOCK_SECONDS = 0.400;
+  LOUDNESS_STEP_SECONDS = 0.100;
+  LOUDNESS_BLOCK_CAPACITY = 6000;
+  LOUDNESS_RING_CAPACITY = 96000;
+  LOUDNESS_ABSOLUTE_GATE_LUFS = -70;
+  LOUDNESS_RELATIVE_GATE_LU = 10;
+  LOUDNESS_OFFSET_DB = -0.691;
   EPSILON = 0.00000000000000000001;
   DB_SCALE_POWER = 10/log(10);
   DB_SCALE_AMPLITUDE = 20/log(10);
@@ -122,6 +133,20 @@ out_pin:mono output
   process_input_block = 780000;
   process_output_block = 781000;
   process_overlap = 782000;
+
+  // Compact learned-source loudness evidence. Each retained 400 ms block has
+  // exact K-weighted total power plus a 240-bin K-weighted power distribution
+  // derived from the Learn FFT already used by the source matcher.
+  // The second pair of arrays keeps a previous successful Learn intact until
+  // its replacement has also passed source-learning validation.
+  k_weighting_bin_power_gain = 783000;
+  loudness_spectral_fraction = 783240;
+  loudness_ring = 790000;
+  capture_loudness_total_power = 886000;
+  capture_loudness_band_power = 900000;
+  learned_loudness_total_power = 2345000;
+  learned_loudness_band_power = 2360000;
+  loudness_fft_bin_profile_index = 3800000;
 
   // BEGIN INLINED DERIVED REFERENCE DATA
 // Adaptive Reference Matcher reference data
@@ -10309,25 +10334,20 @@ profile_confidence[3359] = 0.0000;
     local(minimum_sigma, smoothing_fraction)
   (
     // Smart EQ's zero setting remains a continuously rounded EQ curve. Its
-    // narrowest visible features are approximately Q=6; the supplied endpoint
-    // screenshots place maximum smoothing at about 13.3 profile bins.
+    // narrowest visible features are approximately Q=6. Above that floor, the
+    // measured smart:EQ mapping reaches about 12.7 bins at its endpoint.
     minimum_sigma = BINS_PER_OCTAVE/
       (2.355*MAXIMUM_CORRECTION_Q*log(2));
     smoothing_fraction = frequency_smoothing/100;
-    minimum_sigma + (MAXIMUM_SMOOTHING_SIGMA_BINS-minimum_sigma)*
-      smoothing_fraction*smoothing_fraction;
+    smoothing_fraction <= 0 ? minimum_sigma :
+      minimum_sigma + (MAXIMUM_SMOOTHING_SIGMA_BINS-minimum_sigma)*
+        exp(log(smoothing_fraction)*SMOOTHING_MAPPING_EXPONENT);
   );
 
-  function recent_average_seconds_for_adaptivity()
+  function adaptivity_magnitude_scale()
   (
-    // Exponential control law preserves the deliberately slow minimum while
-    // making maximum Adaptivity follow each 50 Hz analysis measurement.
-    exp(log(20) + (log(0.02)-log(20))*adaptivity/100);
-  );
-
-  function settling_seconds_for_adaptivity()
-  (
-    exp(log(18) + (log(0.02)-log(18))*adaptivity/100);
+    adaptivity <= 0 ? 0 :
+      exp(log(adaptivity/100)*ADAPTIVITY_MAGNITUDE_EXPONENT);
   );
 
   function correction_db_at_frequency(frequency)
@@ -10354,6 +10374,29 @@ profile_confidence[3359] = 0.0000;
     );
   );
 
+  function static_correction_db_at_frequency(frequency)
+    local(position, lower_bin, upper_bin, fraction, last_frequency)
+  (
+    frequency <= 0 || frequency > MAX_FREQUENCY_HZ ? 0 :
+    frequency <= MIN_FREQUENCY_HZ ? reference_correction_db[0] : (
+      position = BINS_PER_OCTAVE*log(frequency/MIN_FREQUENCY_HZ)/log(2);
+      lower_bin = floor(position);
+      lower_bin >= PROFILE_BINS-1 ? (
+        last_frequency = MIN_FREQUENCY_HZ*
+          exp(log(2)*(PROFILE_BINS-1)/BINS_PER_OCTAVE);
+        reference_correction_db[PROFILE_BINS-1]*
+          max(0, (MAX_FREQUENCY_HZ-frequency)/
+            max(EPSILON, MAX_FREQUENCY_HZ-last_frequency));
+      ) : (
+        lower_bin = max(0, lower_bin);
+        upper_bin = lower_bin+1;
+        fraction = max(0, min(1, position-lower_bin));
+        reference_correction_db[lower_bin]*(1-fraction) +
+          reference_correction_db[upper_bin]*fraction;
+      );
+    );
+  );
+
   function set_processing_delay()
   (
     pdc_bot_ch = 0;
@@ -10363,27 +10406,260 @@ profile_confidence[3359] = 0.0000;
     ext_tail_size = PROCESS_FIR_SIZE + PROCESS_PARTITION_SIZE;
   );
 
-  function calculate_auto_gain()
-    local(bin_index, weight, input_power, output_power, correction)
+  function configure_k_weighting()
+    local(k_value, shelf_gain, shelf_mid_gain, denominator)
   (
-    auto_gain_db = 0;
-    auto_gain && learned_valid && !internal_bypass ? (
-      input_power = 0;
-      output_power = 0;
+    // ITU-R BS.1770 K weighting, using the De Man sample-rate-independent
+    // coefficient formulation. The first biquad is the 4 dB high shelf and
+    // the second is the RLB high-pass stage.
+    k_value = tan($pi*1681.974450955533/max(1, srate));
+    shelf_gain = exp(log(10)*3.999843853973347/20);
+    shelf_mid_gain = exp(log(shelf_gain)*0.4996667741545416);
+    denominator = 1 + k_value/0.7071752369554196 + k_value*k_value;
+    k_shelf_b0 = (shelf_gain +
+      shelf_mid_gain*k_value/0.7071752369554196 +
+      k_value*k_value)/denominator;
+    k_shelf_b1 = 2*(k_value*k_value-shelf_gain)/denominator;
+    k_shelf_b2 = (shelf_gain -
+      shelf_mid_gain*k_value/0.7071752369554196 +
+      k_value*k_value)/denominator;
+    k_shelf_a1 = 2*(k_value*k_value-1)/denominator;
+    k_shelf_a2 = (1-k_value/0.7071752369554196+
+      k_value*k_value)/denominator;
+
+    k_value = tan($pi*38.13547087602444/max(1, srate));
+    denominator = 1 + k_value/0.5003270373238773 + k_value*k_value;
+    k_highpass_b0 = 1/denominator;
+    k_highpass_b1 = -2/denominator;
+    k_highpass_b2 = 1/denominator;
+    k_highpass_a1 = 2*(k_value*k_value-1)/denominator;
+    k_highpass_a2 = (1-k_value/0.5003270373238773+
+      k_value*k_value)/denominator;
+  );
+
+  function reset_k_weighting()
+  (
+    k_shelf_x1 = 0;
+    k_shelf_x2 = 0;
+    k_shelf_y1 = 0;
+    k_shelf_y2 = 0;
+    k_highpass_x1 = 0;
+    k_highpass_x2 = 0;
+    k_highpass_y1 = 0;
+    k_highpass_y2 = 0;
+  );
+
+  function k_weight_sample(input_sample)
+    local(shelf_output, weighted_output)
+  (
+    shelf_output = k_shelf_b0*input_sample +
+      k_shelf_b1*k_shelf_x1 + k_shelf_b2*k_shelf_x2 -
+      k_shelf_a1*k_shelf_y1 - k_shelf_a2*k_shelf_y2;
+    k_shelf_x2 = k_shelf_x1;
+    k_shelf_x1 = input_sample;
+    k_shelf_y2 = k_shelf_y1;
+    k_shelf_y1 = shelf_output;
+
+    weighted_output = k_highpass_b0*shelf_output +
+      k_highpass_b1*k_highpass_x1 + k_highpass_b2*k_highpass_x2 -
+      k_highpass_a1*k_highpass_y1 - k_highpass_a2*k_highpass_y2;
+    k_highpass_x2 = k_highpass_x1;
+    k_highpass_x1 = shelf_output;
+    k_highpass_y2 = k_highpass_y1;
+    k_highpass_y1 = weighted_output;
+    weighted_output;
+  );
+
+  function biquad_power_response(frequency, b0, b1, b2, a1, a2)
+    local(angle, cosine_one, sine_one, cosine_two, sine_two,
+          numerator_real, numerator_imaginary,
+          denominator_real, denominator_imaginary)
+  (
+    angle = 2*$pi*frequency/max(1, srate);
+    cosine_one = cos(angle);
+    sine_one = sin(angle);
+    cosine_two = cos(2*angle);
+    sine_two = sin(2*angle);
+    numerator_real = b0+b1*cosine_one+b2*cosine_two;
+    numerator_imaginary = -b1*sine_one-b2*sine_two;
+    denominator_real = 1+a1*cosine_one+a2*cosine_two;
+    denominator_imaginary = -a1*sine_one-a2*sine_two;
+    (numerator_real*numerator_real + numerator_imaginary*numerator_imaginary)/
+      max(EPSILON, denominator_real*denominator_real +
+        denominator_imaginary*denominator_imaginary);
+  );
+
+  function prepare_loudness_bin_weighting()
+    local(bin_index, frequency, shelf_power, highpass_power, fft_bin,
+          frequency_resolution, profile_position)
+  (
+    bin_index = 0;
+    loop(PROFILE_BINS,
+      frequency = MIN_FREQUENCY_HZ*
+        exp(log(2)*bin_index/BINS_PER_OCTAVE);
+      shelf_power = biquad_power_response(frequency,
+        k_shelf_b0, k_shelf_b1, k_shelf_b2, k_shelf_a1, k_shelf_a2);
+      highpass_power = biquad_power_response(frequency,
+        k_highpass_b0, k_highpass_b1, k_highpass_b2,
+        k_highpass_a1, k_highpass_a2);
+      k_weighting_bin_power_gain[bin_index] =
+        shelf_power*highpass_power;
+      bin_index += 1;
+    );
+
+    // Map every positive-frequency Learn FFT bin to its nearest 24-bin/octave
+    // profile centre once. This lets Learn reuse the FFT it already performs
+    // while allocating real spectral energy rather than treating every log
+    // bin as if it covered the same bandwidth.
+    frequency_resolution = srate/FFT_SIZE;
+    fft_bin = 0;
+    loop(FFT_SIZE/2,
+      frequency = fft_bin*frequency_resolution;
+      frequency >= MIN_FREQUENCY_HZ &&
+      frequency <= MAX_FREQUENCY_HZ ? (
+        profile_position = BINS_PER_OCTAVE*
+          log(frequency/MIN_FREQUENCY_HZ)/log(2);
+        loudness_fft_bin_profile_index[fft_bin] = max(0,
+          min(PROFILE_BINS-1, floor(profile_position+0.5)));
+      ) : loudness_fft_bin_profile_index[fft_bin] = -1;
+      fft_bin += 1;
+    );
+  );
+
+  function analyse_loudness_block()
+    local(block_power, block_loudness, block_offset, bin_index)
+  (
+    loudness_block_samples > 0 &&
+    capture_loudness_block_count < LOUDNESS_BLOCK_CAPACITY ? (
+      block_power = max(EPSILON,
+        loudness_ring_sum_squares/loudness_block_samples);
+      block_loudness = LOUDNESS_OFFSET_DB +
+        DB_SCALE_POWER*log(block_power);
+
+      // Blocks below the BS.1770 absolute gate can never enter either pass of
+      // integrated gating, so omitting only those blocks is lossless.
+      block_loudness >= LOUDNESS_ABSOLUTE_GATE_LUFS &&
+      loudness_spectral_ready ? (
+        block_offset = capture_loudness_block_count*PROFILE_BINS;
+        bin_index = 0;
+        loop(PROFILE_BINS,
+          capture_loudness_band_power[block_offset+bin_index] =
+            block_power*loudness_spectral_fraction[bin_index];
+          bin_index += 1;
+        );
+        capture_loudness_total_power[capture_loudness_block_count] =
+          block_power;
+        capture_loudness_block_count += 1;
+      );
+    );
+  );
+
+  function capture_loudness_sample(input_sample)
+    local(weighted_sample, old_sample)
+  (
+    loudness_capture_supported ? (
+      weighted_sample = k_weight_sample(input_sample);
+      old_sample = loudness_ring_filled >= loudness_block_samples ?
+        loudness_ring[loudness_ring_write] : 0;
+      loudness_ring_sum_squares +=
+        weighted_sample*weighted_sample-old_sample*old_sample;
+      loudness_ring[loudness_ring_write] = weighted_sample;
+      loudness_ring_write += 1;
+      loudness_ring_write >= loudness_block_samples ? loudness_ring_write = 0;
+      loudness_ring_filled = min(loudness_block_samples,
+        loudness_ring_filled+1);
+      loudness_step_count += 1;
+      loudness_ring_filled >= loudness_block_samples &&
+      loudness_step_count >= loudness_step_samples ? (
+        analyse_loudness_block();
+        loudness_step_count = 0;
+      );
+    );
+  );
+
+  function learned_loudness_block_energy(block_index, static_eq_enabled)
+    local(total_power, inband_power, filtered_inband_power, block_offset,
+          bin_index, frequency, correction_db, band_power)
+  (
+    total_power = learned_loudness_total_power[block_index];
+    static_eq_enabled ? (
+      inband_power = 0;
+      filtered_inband_power = 0;
+      block_offset = block_index*PROFILE_BINS;
       bin_index = 0;
       loop(PROFILE_BINS,
-        weight = live_initialized ? recent_power_ema[bin_index] :
-          exp(source_anchor_db[bin_index]/DB_SCALE_POWER);
-        correction = total_correction_db[bin_index];
-        input_power += weight;
-        output_power += weight*exp(correction/DB_SCALE_POWER);
+        band_power = max(0,
+          learned_loudness_band_power[block_offset+bin_index]);
+        frequency = MIN_FREQUENCY_HZ*
+          exp(log(2)*bin_index/BINS_PER_OCTAVE);
+        correction_db = static_correction_db_at_frequency(frequency);
+        inband_power += band_power;
+        filtered_inband_power += band_power*
+          exp(correction_db/DB_SCALE_POWER);
         bin_index += 1;
       );
-      auto_gain_db = -DB_SCALE_POWER*
-        log(max(EPSILON, output_power)/max(EPSILON, input_power));
-      auto_gain_db = max(-12, min(12, auto_gain_db));
+      max(0, total_power-inband_power) + filtered_inband_power;
+    ) : total_power;
+  );
+
+  function integrated_loudness(static_eq_enabled)
+    local(block_index, block_energy, block_loudness, absolute_energy_sum,
+          absolute_count, preliminary_loudness, relative_gate_loudness,
+          gated_energy_sum, gated_count)
+  (
+    absolute_energy_sum = 0;
+    absolute_count = 0;
+    block_index = 0;
+    loop(learned_loudness_block_count,
+      block_energy = max(EPSILON,
+        learned_loudness_block_energy(block_index, static_eq_enabled));
+      block_loudness = LOUDNESS_OFFSET_DB +
+        DB_SCALE_POWER*log(block_energy);
+      block_loudness >= LOUDNESS_ABSOLUTE_GATE_LUFS ? (
+        absolute_energy_sum += block_energy;
+        absolute_count += 1;
+      );
+      block_index += 1;
+    );
+
+    absolute_count > 0 ? (
+      preliminary_loudness = LOUDNESS_OFFSET_DB + DB_SCALE_POWER*
+        log(max(EPSILON, absolute_energy_sum/absolute_count));
+      relative_gate_loudness = preliminary_loudness-
+        LOUDNESS_RELATIVE_GATE_LU;
+      gated_energy_sum = 0;
+      gated_count = 0;
+      block_index = 0;
+      loop(learned_loudness_block_count,
+        block_energy = max(EPSILON,
+          learned_loudness_block_energy(block_index, static_eq_enabled));
+        block_loudness = LOUDNESS_OFFSET_DB +
+          DB_SCALE_POWER*log(block_energy);
+        block_loudness >= LOUDNESS_ABSOLUTE_GATE_LUFS &&
+        block_loudness >= relative_gate_loudness ? (
+          gated_energy_sum += block_energy;
+          gated_count += 1;
+        );
+        block_index += 1;
+      );
+      gated_count > 0 ? LOUDNESS_OFFSET_DB + DB_SCALE_POWER*
+        log(max(EPSILON, gated_energy_sum/gated_count)) : -200;
+    ) : -200;
+  );
+
+  function calculate_auto_gain()
+    local(input_loudness, output_loudness)
+  (
+    auto_gain_db = 0;
+    auto_gain && learned_valid && learned_loudness_valid &&
+    !internal_bypass ? (
+      input_loudness = integrated_loudness(0);
+      output_loudness = integrated_loudness(1);
+      input_loudness > -199 && output_loudness > -199 ?
+        auto_gain_db = input_loudness-output_loudness;
     );
     auto_gain_linear = exp(auto_gain_db/DB_SCALE_AMPLITUDE);
+    auto_gain_dirty = 0;
   );
 
   function reset_processing_runtime()
@@ -10407,7 +10683,7 @@ profile_confidence[3359] = 0.0000;
     // by the graph. Linear phase is a symmetric response delayed to the centre
     // of the FIR. Minimum phase is obtained by real-cepstrum spectral
     // factorisation and therefore concentrates energy at the start.
-    calculate_auto_gain();
+    auto_gain_dirty ? calculate_auto_gain();
     phase_mode >= 0.5 ? (
       index = 0;
       loop(PROCESS_FIR_SIZE,
@@ -10613,6 +10889,9 @@ profile_confidence[3359] = 0.0000;
     reset_live_analysis();
     learned_valid = 0;
     learned_observation_count = 0;
+    learned_loudness_valid = 0;
+    learned_loudness_block_count = 0;
+    auto_gain_dirty = 1;
     accepted_observations = 0;
     required_observation_count = 0;
     learn_progress_percent = 0;
@@ -10659,6 +10938,24 @@ profile_confidence[3359] = 0.0000;
       CAPTURE_GATE_ATTACK_SECONDS*srate));
     capture_gate_release = 1-exp(-1/max(1,
       CAPTURE_GATE_RELEASE_SECONDS*srate));
+    configure_k_weighting();
+    reset_k_weighting();
+    prepare_loudness_bin_weighting();
+    loudness_block_samples = max(1,
+      floor(LOUDNESS_BLOCK_SECONDS*srate+0.5));
+    loudness_step_samples = max(1,
+      floor(LOUDNESS_STEP_SECONDS*srate+0.5));
+    loudness_capture_supported = loudness_block_samples <=
+      LOUDNESS_RING_CAPACITY;
+    loudness_ring_write = 0;
+    loudness_ring_filled = 0;
+    loudness_step_count = 0;
+    loudness_ring_sum_squares = 0;
+    capture_loudness_block_count = 0;
+    loudness_spectral_ready = 0;
+    memset(loudness_spectral_fraction, 0, PROFILE_BINS);
+    memset(loudness_ring, 0,
+      min(loudness_block_samples, LOUDNESS_RING_CAPACITY));
     capture_started_srate = srate;
     finalise_reason = 0;
     capture_active = 1;
@@ -10762,6 +11059,7 @@ profile_confidence[3359] = 0.0000;
       );
     );
     refresh_combined_curve();
+    auto_gain_dirty = 1;
     process_filter_force = 1;
   );
 
@@ -10798,12 +11096,11 @@ profile_confidence[3359] = 0.0000;
           settling_alpha)
   (
     evidence_factor = min(1, live_evidence_seconds/
-      max(EPSILON, recent_average_seconds_for_adaptivity()));
+      max(EPSILON, ADAPTIVE_AVERAGE_SECONDS));
     consistency_scale = CONSISTENCY_STRENGTH_FRACTION*
-      reference_strength/100;
-    adaptivity <= 0 ? consistency_scale = 0;
+      reference_strength/100*adaptivity_magnitude_scale();
     settling_alpha = 1-exp(-live_hop_samples/max(1, srate)/
-      max(EPSILON, settling_seconds_for_adaptivity()));
+      max(EPSILON, ADAPTIVE_SETTLING_SECONDS));
     bin_index = 0;
     loop(PROFILE_BINS,
       local_shape_level = min(source_anchor_db[bin_index],
@@ -10828,7 +11125,9 @@ profile_confidence[3359] = 0.0000;
           center, nominal_low, nominal_high, low, high, first_fft_bin,
           last_fft_bin, fft_bin, fft_frequency, left_width, right_width,
           weight, weight_sum, power_sum, real_value, imag_value, frame_offset,
-          frequency_resolution, frame_rms_value_db, frame_is_usable)
+          frequency_resolution, frame_rms_value_db, frame_is_usable,
+          frame_power, loudness_weighted_power_sum, loudness_profile_bin,
+          loudness_power)
   (
     capture_frame_count < max_capture_frames ? (
       i = 0;
@@ -10856,6 +11155,38 @@ profile_confidence[3359] = 0.0000;
 
         frequency_resolution = srate/FFT_SIZE;
         frame_offset = capture_frame_count*PROFILE_BINS;
+        memset(loudness_spectral_fraction, 0, PROFILE_BINS);
+        loudness_weighted_power_sum = 0;
+
+        // Reuse this Learn FFT for the per-block LUFS recalculation evidence.
+        // The exact time-domain K-weighted block total is stored separately;
+        // this spectrum supplies only its normalised frequency allocation.
+        fft_bin = max(1, ceil(MIN_FREQUENCY_HZ/frequency_resolution));
+        last_fft_bin = min(FFT_SIZE/2-1,
+          floor(MAX_FREQUENCY_HZ/frequency_resolution));
+        while(fft_bin <= last_fft_bin) (
+          loudness_profile_bin =
+            loudness_fft_bin_profile_index[fft_bin];
+          real_value = fft_workspace[2*fft_bin];
+          imag_value = fft_workspace[2*fft_bin+1];
+          loudness_power = (real_value*real_value +
+            imag_value*imag_value)*
+            k_weighting_bin_power_gain[loudness_profile_bin];
+          loudness_spectral_fraction[loudness_profile_bin] +=
+            loudness_power;
+          loudness_weighted_power_sum += loudness_power;
+          fft_bin += 1;
+        );
+        loudness_weighted_power_sum > EPSILON ? (
+          bin_index = 0;
+          loop(PROFILE_BINS,
+            loudness_spectral_fraction[bin_index] /=
+              loudness_weighted_power_sum;
+            bin_index += 1;
+          );
+          loudness_spectral_ready = 1;
+        );
+
         bin_index = 0;
         loop(PROFILE_BINS,
           center = MIN_FREQUENCY_HZ*exp(log(2)*bin_index/BINS_PER_OCTAVE);
@@ -10889,7 +11220,8 @@ profile_confidence[3359] = 0.0000;
             power_sum = real_value*real_value + imag_value*imag_value;
             weight_sum = 1;
           );
-          frame_band_power[frame_offset+bin_index] = max(power_sum/weight_sum, EPSILON);
+          frame_power = max(power_sum/weight_sum, EPSILON);
+          frame_band_power[frame_offset+bin_index] = frame_power;
           bin_index += 1;
         );
         capture_frame_count += 1;
@@ -10931,8 +11263,8 @@ profile_confidence[3359] = 0.0000;
     live_frame_count += 1;
     live_runtime_seconds += frame_seconds;
 
-    recent_average_seconds = recent_average_seconds_for_adaptivity();
-    settling_seconds = settling_seconds_for_adaptivity();
+    recent_average_seconds = ADAPTIVE_AVERAGE_SECONDS;
+    settling_seconds = ADAPTIVE_SETTLING_SECONDS;
     settling_alpha = 1-exp(-frame_seconds/max(EPSILON, settling_seconds));
 
     frame_is_valid ? (
@@ -11193,6 +11525,16 @@ profile_confidence[3359] = 0.0000;
 
         learned_valid = 1;
         learned_observation_count = valid_observations;
+        learned_loudness_block_count = capture_loudness_block_count;
+        learned_loudness_valid = loudness_capture_supported &&
+          learned_loudness_block_count > 0;
+        learned_loudness_valid ? (
+          memcpy(learned_loudness_total_power,
+            capture_loudness_total_power, learned_loudness_block_count);
+          memcpy(learned_loudness_band_power,
+            capture_loudness_band_power,
+            learned_loudness_block_count*PROFILE_BINS);
+        );
         accepted_observations = valid_observations;
         anchor_status = 3;
         reset_live_analysis();
@@ -11229,14 +11571,10 @@ profile_confidence[3359] = 0.0000;
       frequency_smoothing != last_frequency_smoothing;
 
     adaptivity != last_adaptivity ? (
-      adaptivity <= 0 ? (
-        // Zero Adaptivity means the deterministic Strength/Smoothing baseline,
-        // never a frozen snapshot of the previous live consistency residual.
-        memset(adaptive_state_db, 0, PROFILE_BINS);
-        memset(adaptive_residual_db, 0, PROFILE_BINS);
-        refresh_combined_curve();
-        process_filter_force = 1;
-      );
+      // Adaptivity changes the amount of the current fixed-anchor correction,
+      // not the time over which that correction is measured or settled.
+      update_consistency_target(1);
+      process_filter_force = 1;
       last_adaptivity = adaptivity;
     );
 
@@ -11270,12 +11608,14 @@ profile_confidence[3359] = 0.0000;
 
     auto_gain != last_auto_gain ? (
       last_auto_gain = auto_gain;
+      auto_gain_dirty = 1;
       process_filter_dirty = 1;
       process_filter_force = 1;
     );
 
     internal_bypass != last_internal_bypass ? (
       last_internal_bypass = internal_bypass;
+      auto_gain_dirty = 1;
       process_filter_dirty = 1;
       process_filter_force = 1;
     );
@@ -11490,6 +11830,10 @@ profile_confidence[3359] = 0.0000;
       capture_gate_peak_db-GATE_BELOW_P90_DB);
     capture_gate_level_db >= capture_online_gate_db ?
       capture_usable_sample_count += 1;
+
+    // Integrated-loudness evidence is gathered only during Learn. It is never
+    // updated from subsequent playback, so Auto Gain remains static.
+    capture_loudness_sample(mono_input);
 
     analysis_ring[capture_ring_write] = mono_input;
     capture_ring_write += 1;
@@ -12183,7 +12527,7 @@ profile_confidence[3359] = 0.0000;
 @serialize
 
   serialise_writing = file_avail(0) < 0;
-  stored_state_version = STATE_VERSION;
+  serialise_writing ? stored_state_version = STATE_VERSION;
   file_var(0, stored_state_version);
   file_var(0, learned_valid);
   file_var(0, learned_observation_count);
@@ -12193,10 +12537,31 @@ profile_confidence[3359] = 0.0000;
     serialise_index += 1;
   );
 
+  stored_state_version >= 2 ? (
+    serialise_writing ?
+      serialised_loudness_block_count = learned_loudness_block_count;
+    file_var(0, serialised_loudness_block_count);
+    !serialise_writing ? learned_loudness_block_count = max(0,
+      min(LOUDNESS_BLOCK_CAPACITY, serialised_loudness_block_count|0));
+    file_mem(0, learned_loudness_total_power,
+      learned_loudness_block_count);
+    file_mem(0, learned_loudness_band_power,
+      learned_loudness_block_count*PROFILE_BINS);
+  ) : !serialise_writing ? (
+    // Version 1 projects retain their learned spectral anchor. They simply
+    // have no LUFS block evidence, so Auto Gain remains neutral until Learn is
+    // run again under version 2.
+    learned_loudness_block_count = 0;
+  );
+
   !serialise_writing ? (
-    stored_state_version != STATE_VERSION ? clear_source_anchor();
+    stored_state_version < 1 || stored_state_version > STATE_VERSION ?
+      clear_source_anchor();
+    learned_loudness_valid = learned_valid &&
+      learned_loudness_block_count > 0;
     accepted_observations = learned_observation_count;
     anchor_status = learned_valid ? 3 : 0;
+    auto_gain_dirty = 1;
     reset_live_analysis();
     calculate_reference_curve();
     sliderchange(slider12);

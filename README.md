@@ -25,8 +25,10 @@ opens this guide from its **Open Guide** button.
   an early beta release intended for testing.
 - **Adaptive EQ with Reference Matching** — a mono narration EQ that learns a
   fixed tonal baseline, continually corrects changes away from that baseline,
-  and can optionally match one of 14 embedded reference profiles. This is a
-  beta release intended for testing.
+  and can optionally match one of 14 embedded reference profiles. Adaptivity
+  scales the live consistency correction, while Auto Gain uses a fixed
+  integrated-loudness trim derived during Learn. This is a beta release
+  intended for testing.
 - **TriLeveler Pro** — a long-form voice leveller with separately limited
   fast, medium and slow correction, optional lookahead, speech/room-tone
   learning, a room-tone threshold learner, and an ambience-preserving path.
