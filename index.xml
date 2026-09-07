@@ -9,11 +9,11 @@
       </version>
     </reapack>
     <reapack name="Adaptive Reference Matcher.jsfx" type="effect" desc="Adaptive EQ with Reference Matching">
-      <version name="0.6.0" author="David Winter" time="2026-08-14T14:14:08Z">
-        <changelog><![CDATA[Initial public beta for external testing.]]></changelog>
-        <source main="main">https://github.com/thenarratorUK/reascripts/raw/ccf1abc8031a2c38522a2017c9f6ef30db39f345/Effects/Adaptive%20Reference%20Matcher/Adaptive%20Reference%20Matcher.jsfx</source>
-        <source file="adaptive-eq-gui.png">https://github.com/thenarratorUK/reascripts/raw/ccf1abc8031a2c38522a2017c9f6ef30db39f345/Effects/Adaptive%20Reference%20Matcher/adaptive-eq-gui.png</source>
-        <source file="adaptive-eq-gui@2x.png">https://github.com/thenarratorUK/reascripts/raw/ccf1abc8031a2c38522a2017c9f6ef30db39f345/Effects/Adaptive%20Reference%20Matcher/adaptive-eq-gui%402x.png</source>
+      <version name="0.7.0" author="David Winter" time="2026-09-07T13:10:04Z">
+        <changelog><![CDATA[Corrects Adaptivity so it scales adaptive correction magnitude while retaining a fixed fast response, recalibrates the Smoothing control, and replaces moving Auto Gain with a static integrated-LUFS trim calculated from the learned source and static reference EQ. Core reference matching, FIR processing and phase modes are unchanged.]]></changelog>
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/3c7ef67dcad3be9e01e02f88c370fc6d79ed725f/Effects/Adaptive%20Reference%20Matcher/Adaptive%20Reference%20Matcher.jsfx</source>
+        <source file="adaptive-eq-gui.png">https://github.com/thenarratorUK/reascripts/raw/3c7ef67dcad3be9e01e02f88c370fc6d79ed725f/Effects/Adaptive%20Reference%20Matcher/adaptive-eq-gui.png</source>
+        <source file="adaptive-eq-gui@2x.png">https://github.com/thenarratorUK/reascripts/raw/3c7ef67dcad3be9e01e02f88c370fc6d79ed725f/Effects/Adaptive%20Reference%20Matcher/adaptive-eq-gui%402x.png</source>
       </version>
     </reapack>
     <reapack name="Progressive Serial Compressor.jsfx" type="effect" desc="Serial Compressor">
