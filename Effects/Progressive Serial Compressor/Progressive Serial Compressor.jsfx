@@ -1,7 +1,7 @@
 desc:Progressive Serial Compressor
 tags: dynamics compressor serial vocal speech
 author: David Winter
-version: 0.1.0
+version: 1.0.1
 options:maxmem=1000000
 
 /*
@@ -21,7 +21,7 @@ slider1:serial_stages=3<2,3,1>Serial Compressors
 slider2:threshold_start=-12<-60,0,0.1>Threshold 1 [dB]
 slider3:threshold_step=8<0,24,0.1>Threshold Step and Knee [dB]
 slider4:common_ratio=1.5<1,10,0.05>Ratio
-slider5:common_knee=6<0,24,0.1>-Legacy linked Knee
+slider5:meter_total_readout=0<0,120,0.1>Overall GR [dB]
 slider6:attack_start=2<0,500,0.1>Attack Start [ms]
 slider7:attack_step=2<-50,50,0.1>Attack Step [ms]
 slider8:precomp_start=2<0,100,0.1>Pre-comp Start [ms]
@@ -52,8 +52,12 @@ slider31:manual_3_attack=6<0,500,0.1>S3 Attack [ms]
 slider32:manual_3_precomp=0<0,100,0.1>S3 Pre-comp [ms]
 slider33:manual_3_release=300<0,3000,1>S3 Release [ms]
 
-slider34:debug_stage_mode=0<0,3,1{All stages,Stage 1 only,Stages 1-2,No stages}>-Debug Stages
-slider35:debug_display=0<0,1,1{Normal,Details}>-Debug Display
+slider34:meter_stage1_readout=0<0,120,0.1>S1 GR [dB]
+slider35:meter_stage2_readout=0<0,120,0.1>S2 GR [dB]
+slider36:meter_stage3_readout=0<0,120,0.1>S3 GR [dB]
+
+slider37:debug_stage_mode=0<0,3,1{All stages,Stage 1 only,Stages 1-2,No stages}>-Debug Stages
+slider38:debug_display=0<0,1,1{Normal,Details}>-Debug Display
 
 in_pin:left input
 in_pin:right input
@@ -86,6 +90,7 @@ out_pin:right output
 
   ext_tail_size = -1;
   ext_gr_meter = 0;
+  meter_hold_samples = max(1, floor(max(srate, 1)*0.75+0.5));
   gfx_ext_retina = 1;
 
   function PSCClamp(value, lower_bound, upper_bound)
@@ -112,6 +117,36 @@ out_pin:right output
       samples = max(milliseconds*0.001*max(srate, 1), 0.0001);
       PSCClamp(1-exp(log(0.01)/samples), 0, 1);
     );
+  );
+
+  // Display-only peak hold. A deeper reduction updates immediately. Once the
+  // signal relaxes, the peak remains visible for 750 ms before stepping down
+  // to the then-current reduction and beginning a new hold interval.
+  function PeakHoldInitialise()
+  instance(held_db, remaining_samples)
+  (
+    held_db = 0;
+    remaining_samples = 0;
+  );
+
+  function PeakHoldUpdate(current_db, enabled)
+  instance(held_db, remaining_samples)
+  global(meter_hold_samples, samplesblock)
+  (
+    !enabled ? (
+      held_db = 0;
+      remaining_samples = 0;
+    ) : current_db >= held_db ? (
+      held_db = current_db;
+      remaining_samples = meter_hold_samples;
+    ) : (
+      remaining_samples = max(0, remaining_samples-samplesblock);
+      remaining_samples <= 0 ? (
+        held_db = current_db;
+        remaining_samples = meter_hold_samples;
+      );
+    );
+    held_db;
   );
 
   /*
@@ -475,6 +510,10 @@ out_pin:right output
   stage1.StageInitialise(stage1_left_base, stage1_right_base, delay_capacity);
   stage2.StageInitialise(stage2_left_base, stage2_right_base, delay_capacity);
   stage3.StageInitialise(stage3_left_base, stage3_right_base, delay_capacity);
+  total_gr_display.PeakHoldInitialise();
+  stage1_gr_display.PeakHoldInitialise();
+  stage2_gr_display.PeakHoldInitialise();
+  stage3_gr_display.PeakHoldInitialise();
   monitor_write = 0;
   live_actual_input_db = db_floor;
   live_actual_output_db = db_floor;
@@ -501,7 +540,43 @@ out_pin:right output
   pdc_bot_ch = 0;
   pdc_top_ch = 2;
   ext_tail_size = total_delay_samples;
-  ext_gr_meter = -meter_total_db;
+
+  held_meter_total_db = total_gr_display.PeakHoldUpdate(meter_total_db,
+    stage1_active || stage2_active || stage3_active);
+  held_meter_stage1_db = stage1_gr_display.PeakHoldUpdate(meter_stage1_db,
+    stage1_active);
+  held_meter_stage2_db = stage2_gr_display.PeakHoldUpdate(meter_stage2_db,
+    stage2_active);
+  held_meter_stage3_db = stage3_gr_display.PeakHoldUpdate(meter_stage3_db,
+    stage3_active);
+  ext_gr_meter = -held_meter_total_db;
+
+  // Native JSFX sliders cannot be made genuinely read-only. Quantise the
+  // actual smoothed reductions to the displayed 0.1 dB resolution, then only
+  // notify REAPER when a displayed value changes. This also immediately
+  // replaces any attempted user edit without refreshing the UI every block.
+  new_meter_total_readout = floor(held_meter_total_db*10+0.5)/10;
+  new_meter_stage1_readout = floor(held_meter_stage1_db*10+0.5)/10;
+  new_meter_stage2_readout = floor(held_meter_stage2_db*10+0.5)/10;
+  new_meter_stage3_readout = floor(held_meter_stage3_db*10+0.5)/10;
+  meter_change_mask = 0;
+  abs(meter_total_readout-new_meter_total_readout) > 0.000001 ? (
+    meter_total_readout = new_meter_total_readout;
+    meter_change_mask += 2^4;
+  );
+  abs(meter_stage1_readout-new_meter_stage1_readout) > 0.000001 ? (
+    meter_stage1_readout = new_meter_stage1_readout;
+    meter_change_mask += 2^33;
+  );
+  abs(meter_stage2_readout-new_meter_stage2_readout) > 0.000001 ? (
+    meter_stage2_readout = new_meter_stage2_readout;
+    meter_change_mask += 2^34;
+  );
+  abs(meter_stage3_readout-new_meter_stage3_readout) > 0.000001 ? (
+    meter_stage3_readout = new_meter_stage3_readout;
+    meter_change_mask += 2^35;
+  );
+  meter_change_mask ? sliderchange(meter_change_mask);
 
 @sample
 
