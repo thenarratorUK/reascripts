@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<index version="1" name="thenarratorUK ReaScripts" commit="60f64c658a1ce39afa8bd8abe2d65fce127bf6c3">
+<index version="1" name="thenarratorUK ReaScripts" commit="c227b49a478d990fbf91be6bd56fb5b5321dabff">
   <category name="Plugins">
     <reapack name="Adaptive Phase Rotator.jsfx" type="effect" desc="Adaptive Phase Rotator">
       <version name="0.3.0" author="David Winter" time="2026-09-06T18:50:50Z">
@@ -9,11 +9,11 @@
       </version>
     </reapack>
     <reapack name="Adaptive Reference Matcher.jsfx" type="effect" desc="Adaptive EQ with Reference Matching">
-      <version name="0.7.0" author="David Winter" time="2026-09-07T13:10:04Z">
-        <changelog><![CDATA[Corrects Adaptivity so it scales adaptive correction magnitude while retaining a fixed fast response, recalibrates the Smoothing control, and replaces moving Auto Gain with a static integrated-LUFS trim calculated from the learned source and static reference EQ. Core reference matching, FIR processing and phase modes are unchanged.]]></changelog>
-        <source main="main">https://github.com/thenarratorUK/reascripts/raw/3c7ef67dcad3be9e01e02f88c370fc6d79ed725f/Effects/Adaptive%20Reference%20Matcher/Adaptive%20Reference%20Matcher.jsfx</source>
-        <source file="adaptive-eq-gui.png">https://github.com/thenarratorUK/reascripts/raw/3c7ef67dcad3be9e01e02f88c370fc6d79ed725f/Effects/Adaptive%20Reference%20Matcher/adaptive-eq-gui.png</source>
-        <source file="adaptive-eq-gui@2x.png">https://github.com/thenarratorUK/reascripts/raw/3c7ef67dcad3be9e01e02f88c370fc6d79ed725f/Effects/Adaptive%20Reference%20Matcher/adaptive-eq-gui%402x.png</source>
+      <version name="0.7.1" author="David Winter" time="2026-09-10T21:20:03Z">
+        <changelog><![CDATA[Keeps fixed-anchor Consistency full-spectrum regardless of the selected reference range and applies local spectral support once before smoothing, avoiding accidental double attenuation in partial-support regions. Reference matching, Adaptivity, Smoothing, FIR processing, phase modes and the GUI are unchanged.]]></changelog>
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/c227b49a478d990fbf91be6bd56fb5b5321dabff/Effects/Adaptive%20Reference%20Matcher/Adaptive%20Reference%20Matcher.jsfx</source>
+        <source file="adaptive-eq-gui.png">https://github.com/thenarratorUK/reascripts/raw/c227b49a478d990fbf91be6bd56fb5b5321dabff/Effects/Adaptive%20Reference%20Matcher/adaptive-eq-gui.png</source>
+        <source file="adaptive-eq-gui@2x.png">https://github.com/thenarratorUK/reascripts/raw/c227b49a478d990fbf91be6bd56fb5b5321dabff/Effects/Adaptive%20Reference%20Matcher/adaptive-eq-gui%402x.png</source>
       </version>
     </reapack>
     <reapack name="Progressive Serial Compressor.jsfx" type="effect" desc="Serial Compressor">
