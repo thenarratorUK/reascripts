@@ -1,7 +1,7 @@
 desc:Adaptive Reference Matcher
 // @description Fixed-anchor adaptive mono narration EQ with 14 embedded references
 // @author David Winter
-// @version 0.7.0
+// @version 0.7.1
 // @about
 //   Branded custom-interface release. Learns and persists a fixed source
 //   anchor, combines linear reference matching with live self-consistency, and
@@ -71,7 +71,6 @@ out_pin:mono output
   MAXIMUM_SMOOTHING_SIGMA_BINS = 12.7;
   SMOOTHING_MAPPING_EXPONENT = 2.38;
   CONSISTENCY_STRENGTH_FRACTION = 0.25;
-  CONSISTENCY_OUTSIDE_RANGE_SCALE = 0.35;
   ADAPTIVITY_MAGNITUDE_EXPONENT = 1.74;
   ADAPTIVE_AVERAGE_SECONDS = 0.02;
   ADAPTIVE_SETTLING_SECONDS = 0.02;
@@ -10832,17 +10831,12 @@ profile_confidence[3359] = 0.0000;
   );
 
   function refresh_combined_curve()
-    local(selected_profile, bin_index, frequency, range_scale, correction)
+    local(bin_index, correction)
   (
-    selected_profile = (reference_select|0)-1;
     adaptive_peak_db = 0;
     bin_index = 0;
     loop(PROFILE_BINS,
-      frequency = MIN_FREQUENCY_HZ*exp(log(2)*bin_index/BINS_PER_OCTAVE);
-      range_scale = selected_profile >= 0 ?
-        CONSISTENCY_OUTSIDE_RANGE_SCALE +
-        (1-CONSISTENCY_OUTSIDE_RANGE_SCALE)*reference_range_taper(frequency) : 1;
-      correction = adaptive_state_db[bin_index]*range_scale;
+      correction = adaptive_state_db[bin_index];
       adaptive_residual_db[bin_index] = correction;
       total_correction_db[bin_index] =
         reference_correction_db[bin_index] + correction;
@@ -11091,9 +11085,8 @@ profile_confidence[3359] = 0.0000;
   );
 
   function update_consistency_target(update_immediately)
-    local(bin_index, local_shape_level, support, evidence_factor,
-          consistency_scale, consistency_target,
-          settling_alpha)
+    local(bin_index, evidence_factor, consistency_scale,
+          consistency_target, settling_alpha)
   (
     evidence_factor = min(1, live_evidence_seconds/
       max(EPSILON, ADAPTIVE_AVERAGE_SECONDS));
@@ -11103,14 +11096,8 @@ profile_confidence[3359] = 0.0000;
       max(EPSILON, ADAPTIVE_SETTLING_SECONDS));
     bin_index = 0;
     loop(PROFILE_BINS,
-      local_shape_level = min(source_anchor_db[bin_index],
-        recent_shape_db[bin_index]);
-      support = local_shape_level >= LIVE_FULL_SUPPORT_REL_DB ? 1 :
-        local_shape_level <= LIVE_ZERO_SUPPORT_REL_DB ? 0 :
-        (local_shape_level-LIVE_ZERO_SUPPORT_REL_DB)/
-          (LIVE_FULL_SUPPORT_REL_DB-LIVE_ZERO_SUPPORT_REL_DB);
       consistency_target = adaptive_smoothed_db[bin_index]*
-        support*evidence_factor*consistency_scale;
+        evidence_factor*consistency_scale;
       update_immediately ?
         adaptive_state_db[bin_index] = consistency_target :
         adaptive_state_db[bin_index] += settling_alpha*
