@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<index version="1" name="thenarratorUK ReaScripts" commit="672c71caa8701e77688c1984901edafe1c798b71">
+<index version="1" name="thenarratorUK ReaScripts" commit="60f64c658a1ce39afa8bd8abe2d65fce127bf6c3">
   <category name="Plugins">
     <reapack name="Adaptive Phase Rotator.jsfx" type="effect" desc="Adaptive Phase Rotator">
       <version name="0.3.0" author="David Winter" time="2026-09-06T18:50:50Z">
@@ -17,9 +17,9 @@
       </version>
     </reapack>
     <reapack name="Progressive Serial Compressor.jsfx" type="effect" desc="Serial Compressor">
-      <version name="1.0.2" author="David Winter" time="2026-09-10T16:05:38Z">
-        <changelog><![CDATA[Recalibrates Attack to a conventional exponential time constant in reciprocal linear-gain space and replaces the exponential RMS detector with a finite moving RMS window. The transfer curve, linked 2/4/6 ms attack and 2/1/0 ms pre-comp defaults, lookahead, release, and Auto Release behaviour are unchanged.]]></changelog>
-        <source main="main">https://github.com/thenarratorUK/reascripts/raw/672c71caa8701e77688c1984901edafe1c798b71/Effects/Progressive%20Serial%20Compressor/Progressive%20Serial%20Compressor.jsfx</source>
+      <version name="1.0.3" author="David Winter" time="2026-09-10T21:14:22Z">
+        <changelog><![CDATA[Matches measured ReaComp release behaviour with a conventional detector-amplitude time constant, replaces the custom programme-history Auto Release with the measured 1950 dB²/s recovery limit, and adopts the measured symmetric knee curve. Threshold Step now generates a Knee Size equal to half the spacing so adjacent knee regions meet. Attack, finite RMS detection, pre-comp, serial routing, delay compensation, and timing-control defaults are unchanged.]]></changelog>
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/60f64c658a1ce39afa8bd8abe2d65fce127bf6c3/Effects/Progressive%20Serial%20Compressor/Progressive%20Serial%20Compressor.jsfx</source>
       </version>
     </reapack>
     <reapack name="TriLevelerPro.jsfx" type="effect" desc="TriLeveler Pro">
