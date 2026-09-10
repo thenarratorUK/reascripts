@@ -1,16 +1,15 @@
 desc:Progressive Serial Compressor
 tags: dynamics compressor serial vocal speech
 author: David Winter
-version: 1.0.2
+version: 1.0.3
 options:maxmem=1000000
 
 /*
   Progressive Serial Compressor
 
   Three independently detected compressor stages connected in series.  This is
-  an original implementation: it uses a one-sided soft knee and its own
-  program-dependent release, rather than attempting to reproduce any other
-  compressor's implementation.
+  an original implementation whose knee and envelope ballistics follow
+  measured native ReaComp behaviour without reusing ReaComp code.
 
   The native REAPER JSFX slider panel is intentionally the complete UI. There
   is no graphics surface: regular host sliders are clearer, more familiar, and
@@ -19,7 +18,7 @@ options:maxmem=1000000
 
 slider1:serial_stages=3<2,3,1>Serial Compressors
 slider2:threshold_start=-12<-60,0,0.1>Threshold 1 [dB]
-slider3:threshold_step=8<0,24,0.1>Threshold Step and Knee [dB]
+slider3:threshold_step=8<0,24,0.1>Threshold Step [dB]
 slider4:common_ratio=1.5<1,10,0.05>Ratio
 slider5:meter_total_readout=0<0,120,0.1>Overall GR [dB]
 slider6:attack_start=2<0,500,0.1>Attack Start [ms]
@@ -35,19 +34,19 @@ slider14:processing_bypass=0<0,1,1{Active,Bypass}>Processing
 slider15:manual_stages=0<0,1,1{Linked,Manual stages}>Stage Mode
 slider16:manual_1_threshold=-12<-120,0,0.1>S1 Threshold [dB]
 slider17:manual_1_ratio=1.5<1,10,0.05>S1 Ratio
-slider18:manual_1_knee=6<0,24,0.1>S1 Knee [dB, capped]
+slider18:manual_1_knee=4<0,24,0.1>S1 Knee Size [dB]
 slider19:manual_1_attack=2<0,500,0.1>S1 Attack [ms]
 slider20:manual_1_precomp=2<0,100,0.1>S1 Pre-comp [ms]
 slider21:manual_1_release=300<0,3000,1>S1 Release [ms]
 slider22:manual_2_threshold=-20<-120,0,0.1>S2 Threshold [dB]
 slider23:manual_2_ratio=1.5<1,10,0.05>S2 Ratio
-slider24:manual_2_knee=6<0,24,0.1>S2 Knee [dB, capped]
+slider24:manual_2_knee=4<0,24,0.1>S2 Knee Size [dB]
 slider25:manual_2_attack=4<0,500,0.1>S2 Attack [ms]
 slider26:manual_2_precomp=1<0,100,0.1>S2 Pre-comp [ms]
 slider27:manual_2_release=300<0,3000,1>S2 Release [ms]
 slider28:manual_3_threshold=-28<-120,0,0.1>S3 Threshold [dB]
 slider29:manual_3_ratio=1.5<1,10,0.05>S3 Ratio
-slider30:manual_3_knee=6<0,24,0.1>S3 Knee [dB, capped]
+slider30:manual_3_knee=4<0,24,0.1>S3 Knee Size [dB]
 slider31:manual_3_attack=6<0,500,0.1>S3 Attack [ms]
 slider32:manual_3_precomp=0<0,100,0.1>S3 Pre-comp [ms]
 slider33:manual_3_release=300<0,3000,1>S3 Release [ms]
@@ -70,6 +69,7 @@ out_pin:right output
   // all three independently delayed stages can be safely automated.
   maximum_precomp_ms = 100;
   maximum_rms_ms = 100;
+  auto_release_constant = 1950;
   db_floor = -180;
   delay_capacity = max(8, ceil(max(srate, 1)*maximum_precomp_ms*0.001)+4);
   rms_capacity = max(1, ceil(max(srate, 1)*maximum_rms_ms*0.001)+1);
@@ -113,7 +113,8 @@ out_pin:right output
     20*log10(max(abs(value), 0.000000000001));
   );
 
-  // Returns an EMA step that leaves 1% of an error after milliseconds.
+  // Returns an EMA step that leaves 1% of an error after milliseconds. This
+  // calibration is retained only for the existing output-gain smoothing.
   function OnePercentStep(milliseconds)
   local(samples)
   global(srate)
@@ -126,7 +127,7 @@ out_pin:right output
 
   // Conventional exponential time-constant coefficient: after the displayed
   // time, 1-exp(-1) of a step has been traversed. This is intentionally not
-  // the 99%-settled calibration retained for release and other slow controls.
+  // the 99%-settled calibration retained for output-gain smoothing.
   function TimeConstantStep(milliseconds)
   local(samples)
   global(srate)
@@ -168,23 +169,26 @@ out_pin:right output
   );
 
   /*
-    One-sided soft knee.  Below threshold it is exactly unity.  Across the
-    next knee dB, gain reduction follows 2u^2-u^3: both the reduction and its
-    slope begin at zero, then meet the full-ratio line continuously at u = 1.
+    ReaComp-style symmetric knee. Knee Size is the distance on either side of
+    threshold, so the complete transition is 2*K dB wide. The measured shape
+    is ratio-independent apart from scaling by 1-1/R.
   */
   function StageTransfer(input_db, threshold_db, ratio_value, knee_db)
-  local(over_db, knee_fraction, compression_slope, reduction_db)
+  local(over_db, knee_fraction, compression_slope, knee_shape,
+    reduction_db)
   (
     ratio_value = max(1, ratio_value);
     over_db = input_db-threshold_db;
-    over_db <= 0 ? input_db :
-    knee_db <= 0.000001 ? threshold_db+over_db/ratio_value :
-    over_db >= knee_db ? threshold_db+over_db/ratio_value : (
+    compression_slope = 1-1/ratio_value;
+    knee_db <= 0.000001 ? (
+      over_db <= 0 ? input_db : input_db-compression_slope*over_db;
+    ) : over_db <= -knee_db ? input_db :
+    over_db >= knee_db ? input_db-compression_slope*over_db : (
       knee_fraction = over_db/knee_db;
-      compression_slope = 1-1/ratio_value;
+      knee_shape = 1.68673;
       reduction_db = compression_slope*knee_db*
-        (2*knee_fraction*knee_fraction-
-          knee_fraction*knee_fraction*knee_fraction);
+        (knee_fraction+sqrt(knee_fraction*knee_fraction+
+          knee_shape*knee_shape)-sqrt(1+knee_shape*knee_shape)+1)/2;
       input_db-reduction_db;
     );
   );
@@ -212,9 +216,9 @@ out_pin:right output
     previous_delay_samples, delay_crossfade_remaining, delay_write,
     rms_buffer_base, rms_buffer_capacity, rms_window_samples, rms_write,
     rms_running_sum, detector_power, detector_db, target_reduction_db,
-    gain_reciprocal, gain_reduction_db, program_reduction_db,
-    effective_release_ms, attack_step, release_ms, threshold_db, ratio_value,
-    knee_db, output_left, output_right)
+    release_detector_amplitude, gain_reciprocal, gain_reduction_db,
+    attack_step, release_step, release_ms, threshold_db, ratio_value, knee_db,
+    output_left, output_right)
   global(db_floor)
   (
     delay_left_base = left_base;
@@ -227,11 +231,12 @@ out_pin:right output
     rms_window_samples = rms_write = rms_running_sum = 0;
     detector_power = 0;
     detector_db = db_floor;
+    release_detector_amplitude = 0;
     gain_reciprocal = 1;
-    target_reduction_db = gain_reduction_db = program_reduction_db = 0;
-    effective_release_ms = 0;
+    target_reduction_db = gain_reduction_db = 0;
     attack_step = 1;
-    release_ms = 200;
+    release_step = 1;
+    release_ms = 300;
     threshold_db = -12;
     ratio_value = 1;
     knee_db = 0;
@@ -245,7 +250,7 @@ out_pin:right output
     new_attack_ms, new_precomp_ms, new_release_ms, new_rms_ms)
   instance(delay_capacity, delay_samples, previous_delay_samples,
     delay_crossfade_remaining, threshold_db, ratio_value, knee_db,
-    attack_step, release_ms, rms_buffer_base, rms_buffer_capacity,
+    attack_step, release_step, release_ms, rms_buffer_base, rms_buffer_capacity,
     rms_window_samples, rms_write, rms_running_sum, detector_power)
   local(new_delay_samples, new_rms_samples)
   global(srate, maximum_precomp_ms, maximum_rms_ms,
@@ -253,11 +258,10 @@ out_pin:right output
   (
     threshold_db = new_threshold_db;
     ratio_value = PSCClamp(new_ratio_value, 1, 10);
-    // A one-sided knee begins at threshold. Do not let its end extend past
-    // 0 dBFS, even if a parameter is automated or written externally.
-    knee_db = PSCClamp(new_knee_db, 0, max(0, -new_threshold_db));
+    knee_db = PSCClamp(new_knee_db, 0, 24);
     attack_step = TimeConstantStep(PSCClamp(new_attack_ms, 0, 500));
     release_ms = PSCClamp(new_release_ms, 0, 3000);
+    release_step = TimeConstantStep(release_ms);
     new_rms_samples = floor(PSCClamp(new_rms_ms, 0,
       maximum_rms_ms)*0.001*max(srate, 1)+0.5);
     new_rms_samples = PSCClamp(new_rms_samples, 0, rms_buffer_capacity);
@@ -284,14 +288,17 @@ out_pin:right output
   instance(delay_left_base, delay_right_base, delay_capacity, delay_samples,
     previous_delay_samples, delay_crossfade_remaining, delay_write,
     rms_buffer_base, rms_window_samples, rms_write, rms_running_sum,
-    detector_power, detector_db, target_reduction_db, gain_reciprocal,
-    gain_reduction_db, program_reduction_db, effective_release_ms,
-    attack_step, release_ms, threshold_db, ratio_value, knee_db,
-    output_left, output_right)
-  local(input_power, previous_power, desired_reduction_db, target_reciprocal,
-    release_step, applied_gain, new_read_index, old_read_index, new_left,
-    new_right, old_left, old_right, delayed_left, delayed_right, fade_fraction)
-  global(program_step, auto_release, delay_change_fade_length)
+    detector_power, detector_db, target_reduction_db,
+    release_detector_amplitude, gain_reciprocal, gain_reduction_db,
+    attack_step, release_step, threshold_db, ratio_value, knee_db, output_left,
+    output_right)
+  local(input_power, previous_power, detector_amplitude, release_detector_db,
+    manual_release_candidate_db, auto_release_candidate_db,
+    desired_reduction_db, target_reciprocal, applied_gain, new_read_index,
+    old_read_index, new_left, new_right, old_left, old_right, delayed_left,
+    delayed_right, fade_fraction)
+  global(srate, auto_release, auto_release_constant,
+    delay_change_fade_length)
   (
     // Linked stereo detection uses the larger channel energy, preserving image.
     input_power = max(input_left*input_left, input_right*input_right);
@@ -308,24 +315,33 @@ out_pin:right output
       detector_power = rms_running_sum/rms_window_samples;
     );
     detector_power = max(0, detector_power);
-    detector_db = AmplitudeToDB(sqrt(detector_power));
+    detector_amplitude = sqrt(detector_power);
+    detector_db = AmplitudeToDB(detector_amplitude);
 
-    enabled ? desired_reduction_db = max(0, detector_db-
-      StageTransfer(detector_db, threshold_db, ratio_value, knee_db)) :
-      desired_reduction_db = 0;
-    target_reduction_db = desired_reduction_db;
-
-    // A medium-time history gives deep/sustained reduction a longer release,
-    // while a brief light peak returns sooner.  The common Release slider is
-    // still the reference scale in both Auto Release modes.
-    program_reduction_db += program_step*
-      (desired_reduction_db-program_reduction_db);
-    program_reduction_db = PSCClamp(program_reduction_db, 0, 120);
-    effective_release_ms = release_ms;
-    auto_release >= 0.5 ? (
-      effective_release_ms *= 0.60+min(1.40,
-        (gain_reduction_db+program_reduction_db)/12);
+    // Release is a conventional time constant on detector amplitude before
+    // the static transfer curve. Rising levels pass immediately to the
+    // separately smoothed reciprocal-gain attack path below.
+    detector_amplitude >= release_detector_amplitude ? (
+      release_detector_amplitude = detector_amplitude;
+    ) : (
+      release_detector_amplitude += release_step*
+        (detector_amplitude-release_detector_amplitude);
     );
+    release_detector_db = AmplitudeToDB(release_detector_amplitude);
+    enabled ? manual_release_candidate_db = max(0, release_detector_db-
+      StageTransfer(release_detector_db, threshold_db, ratio_value,
+        knee_db)) : manual_release_candidate_db = 0;
+
+    // ReaComp Auto Release is a maximum permitted recovery speed: compare the
+    // ordinary manual-release candidate with the measured GR-squared curve and
+    // retain whichever candidate applies more gain reduction.
+    auto_release_candidate_db = sqrt(max(0,
+      gain_reduction_db*gain_reduction_db-
+        auto_release_constant/max(srate, 1)));
+    desired_reduction_db = auto_release >= 0.5 ?
+      max(manual_release_candidate_db, auto_release_candidate_db) :
+      manual_release_candidate_db;
+    target_reduction_db = desired_reduction_db;
 
     target_reciprocal = DBToAmplitude(desired_reduction_db);
     desired_reduction_db > gain_reduction_db ? (
@@ -336,11 +352,7 @@ out_pin:right output
       gain_reciprocal = PSCClamp(gain_reciprocal, 1, DBToAmplitude(120));
       gain_reduction_db = AmplitudeToDB(gain_reciprocal);
     ) : (
-      // Retain the existing dB-domain release law and synchronise q after it.
-      release_step = OnePercentStep(effective_release_ms);
-      gain_reduction_db += release_step*
-        (desired_reduction_db-gain_reduction_db);
-      gain_reduction_db = PSCClamp(gain_reduction_db, 0, 120);
+      gain_reduction_db = PSCClamp(desired_reduction_db, 0, 120);
       gain_reciprocal = DBToAmplitude(gain_reduction_db);
     );
 
@@ -375,6 +387,7 @@ out_pin:right output
   );
 
   function GenerateLinkedParameters()
+  local(linked_knee)
   global(threshold_start, threshold_step, common_ratio,
     attack_start, attack_step, precomp_start, precomp_step, common_release,
     linked_1_threshold, linked_2_threshold, linked_3_threshold,
@@ -389,12 +402,10 @@ out_pin:right output
     linked_2_threshold = threshold_start-threshold_step;
     linked_3_threshold = threshold_start-2*threshold_step;
     linked_1_ratio = linked_2_ratio = linked_3_ratio = common_ratio;
-    // In Linked mode, the threshold spacing is also the knee width. This makes
-    // S2 and S3 reach full ratio at the next higher stage's threshold. Each
-    // knee remains capped by its own threshold so it cannot extend past 0 dBFS.
-    linked_1_knee = PSCClamp(threshold_step, 0, max(0, -linked_1_threshold));
-    linked_2_knee = PSCClamp(threshold_step, 0, max(0, -linked_2_threshold));
-    linked_3_knee = PSCClamp(threshold_step, 0, max(0, -linked_3_threshold));
+    // A symmetric knee extends this far on each side of its threshold. Half
+    // the threshold spacing makes adjacent stage knee regions meet exactly.
+    linked_knee = PSCClamp(threshold_step*0.5, 0, 24);
+    linked_1_knee = linked_2_knee = linked_3_knee = linked_knee;
     linked_1_attack = PSCClamp(attack_start, 0, 500);
     linked_2_attack = PSCClamp(attack_start+attack_step, 0, 500);
     linked_3_attack = PSCClamp(attack_start+2*attack_step, 0, 500);
@@ -491,9 +502,9 @@ out_pin:right output
     manual_stages < 0.5 ? CopyLinkedValuesToManual();
 
     manual_stages >= 0.5 ? (
-      manual_1_knee = PSCClamp(manual_1_knee, 0, max(0, -manual_1_threshold));
-      manual_2_knee = PSCClamp(manual_2_knee, 0, max(0, -manual_2_threshold));
-      manual_3_knee = PSCClamp(manual_3_knee, 0, max(0, -manual_3_threshold));
+      manual_1_knee = PSCClamp(manual_1_knee, 0, 24);
+      manual_2_knee = PSCClamp(manual_2_knee, 0, 24);
+      manual_3_knee = PSCClamp(manual_3_knee, 0, 24);
       stage1_threshold = manual_1_threshold;
       stage2_threshold = manual_2_threshold;
       stage3_threshold = manual_3_threshold;
@@ -546,7 +557,6 @@ out_pin:right output
     stage2_active = processing_bypass < 0.5 && debug_stage_mode < 2 ? 1 : 0;
     stage3_active = serial_stages >= 3 && processing_bypass < 0.5 &&
       debug_stage_mode < 1 ? 1 : 0;
-    program_step = OnePercentStep(125);
     output_gain_step = OnePercentStep(5);
     output_gain_target = processing_bypass >= 0.5 ? 1 :
       DBToAmplitude(output_gain);
