@@ -1,7 +1,7 @@
 desc:Progressive Serial Compressor
 tags: dynamics compressor serial vocal speech
 author: David Winter
-version: 1.0.1
+version: 1.0.2
 options:maxmem=1000000
 
 /*
@@ -69,14 +69,16 @@ out_pin:right output
   // This ceiling is deliberately higher than the advertised default range so
   // all three independently delayed stages can be safely automated.
   maximum_precomp_ms = 100;
+  maximum_rms_ms = 100;
   db_floor = -180;
   delay_capacity = max(8, ceil(max(srate, 1)*maximum_precomp_ms*0.001)+4);
+  rms_capacity = max(1, ceil(max(srate, 1)*maximum_rms_ms*0.001)+1);
   monitor_delay_capacity = max(8,
     ceil(max(srate, 1)*maximum_precomp_ms*0.003)+4);
   delay_change_fade_length = max(16, floor(max(srate, 1)*0.002));
 
-  // Six audio rings (left/right for each independent stage), followed by a
-  // two-channel monitor ring used only to align the live graph's input point.
+  // Six audio rings (left/right for each independent stage), a two-channel
+  // monitor ring, then one finite RMS window per independently detected stage.
   stage1_left_base = 0;
   stage1_right_base = stage1_left_base + delay_capacity;
   stage2_left_base = stage1_right_base + delay_capacity;
@@ -85,7 +87,10 @@ out_pin:right output
   stage3_right_base = stage3_left_base + delay_capacity;
   monitor_left_base = stage3_right_base + delay_capacity;
   monitor_right_base = monitor_left_base + monitor_delay_capacity;
-  total_memory_samples = monitor_right_base + monitor_delay_capacity;
+  stage1_rms_base = monitor_right_base + monitor_delay_capacity;
+  stage2_rms_base = stage1_rms_base + rms_capacity;
+  stage3_rms_base = stage2_rms_base + rms_capacity;
+  total_memory_samples = stage3_rms_base + rms_capacity;
   memset(0, 0, total_memory_samples);
 
   ext_tail_size = -1;
@@ -116,6 +121,19 @@ out_pin:right output
     milliseconds <= 0.0001 ? 1 : (
       samples = max(milliseconds*0.001*max(srate, 1), 0.0001);
       PSCClamp(1-exp(log(0.01)/samples), 0, 1);
+    );
+  );
+
+  // Conventional exponential time-constant coefficient: after the displayed
+  // time, 1-exp(-1) of a step has been traversed. This is intentionally not
+  // the 99%-settled calibration retained for release and other slow controls.
+  function TimeConstantStep(milliseconds)
+  local(samples)
+  global(srate)
+  (
+    milliseconds <= 0.0001 ? 1 : (
+      samples = max(milliseconds*0.001*max(srate, 1), 0.0001);
+      PSCClamp(1-exp(-1/samples), 0, 1);
     );
   );
 
@@ -188,12 +206,15 @@ out_pin:right output
     output_db;
   );
 
-  function StageInitialise(left_base, right_base, capacity)
+  function StageInitialise(left_base, right_base, capacity,
+    rms_base, rms_capacity)
   instance(delay_left_base, delay_right_base, delay_capacity, delay_samples,
     previous_delay_samples, delay_crossfade_remaining, delay_write,
-    detector_power, detector_db, target_reduction_db, gain_reduction_db,
-    program_reduction_db, effective_release_ms, attack_step, release_ms,
-    threshold_db, ratio_value, knee_db, output_left, output_right)
+    rms_buffer_base, rms_buffer_capacity, rms_window_samples, rms_write,
+    rms_running_sum, detector_power, detector_db, target_reduction_db,
+    gain_reciprocal, gain_reduction_db, program_reduction_db,
+    effective_release_ms, attack_step, release_ms, threshold_db, ratio_value,
+    knee_db, output_left, output_right)
   global(db_floor)
   (
     delay_left_base = left_base;
@@ -201,8 +222,12 @@ out_pin:right output
     delay_capacity = capacity;
     delay_samples = previous_delay_samples = delay_crossfade_remaining = 0;
     delay_write = 0;
+    rms_buffer_base = rms_base;
+    rms_buffer_capacity = rms_capacity;
+    rms_window_samples = rms_write = rms_running_sum = 0;
     detector_power = 0;
     detector_db = db_floor;
+    gain_reciprocal = 1;
     target_reduction_db = gain_reduction_db = program_reduction_db = 0;
     effective_release_ms = 0;
     attack_step = 1;
@@ -217,21 +242,32 @@ out_pin:right output
   // therefore never resize or invalidate storage; a 2 ms crossfade prevents a
   // delay-time automation change from creating a click.
   function StageConfigure(new_threshold_db, new_ratio_value, new_knee_db,
-    new_attack_ms, new_precomp_ms, new_release_ms)
+    new_attack_ms, new_precomp_ms, new_release_ms, new_rms_ms)
   instance(delay_capacity, delay_samples, previous_delay_samples,
     delay_crossfade_remaining, threshold_db, ratio_value, knee_db,
-    attack_step, release_ms)
-  local(new_delay_samples)
-  global(srate, maximum_precomp_ms, delay_change_fade_length,
-    delay_transitions_enabled)
+    attack_step, release_ms, rms_buffer_base, rms_buffer_capacity,
+    rms_window_samples, rms_write, rms_running_sum, detector_power)
+  local(new_delay_samples, new_rms_samples)
+  global(srate, maximum_precomp_ms, maximum_rms_ms,
+    delay_change_fade_length, delay_transitions_enabled)
   (
     threshold_db = new_threshold_db;
     ratio_value = PSCClamp(new_ratio_value, 1, 10);
     // A one-sided knee begins at threshold. Do not let its end extend past
     // 0 dBFS, even if a parameter is automated or written externally.
     knee_db = PSCClamp(new_knee_db, 0, max(0, -new_threshold_db));
-    attack_step = OnePercentStep(PSCClamp(new_attack_ms, 0, 500));
+    attack_step = TimeConstantStep(PSCClamp(new_attack_ms, 0, 500));
     release_ms = PSCClamp(new_release_ms, 0, 3000);
+    new_rms_samples = floor(PSCClamp(new_rms_ms, 0,
+      maximum_rms_ms)*0.001*max(srate, 1)+0.5);
+    new_rms_samples = PSCClamp(new_rms_samples, 0, rms_buffer_capacity);
+    new_rms_samples != rms_window_samples ? (
+      memset(rms_buffer_base, 0, rms_buffer_capacity);
+      rms_window_samples = new_rms_samples;
+      rms_write = 0;
+      rms_running_sum = 0;
+      detector_power = 0;
+    );
     new_delay_samples = floor(PSCClamp(new_precomp_ms, 0,
       maximum_precomp_ms)*0.001*max(srate, 1)+0.5);
     new_delay_samples = PSCClamp(new_delay_samples, 0, delay_capacity-2);
@@ -247,19 +283,30 @@ out_pin:right output
   function StageProcess(input_left, input_right, enabled)
   instance(delay_left_base, delay_right_base, delay_capacity, delay_samples,
     previous_delay_samples, delay_crossfade_remaining, delay_write,
-    detector_power, detector_db, target_reduction_db, gain_reduction_db,
-    program_reduction_db, effective_release_ms, attack_step, release_ms,
-    threshold_db, ratio_value, knee_db, output_left, output_right)
-  local(input_power, desired_reduction_db, release_step, applied_gain,
-    new_read_index, old_read_index, new_left, new_right, old_left, old_right,
-    delayed_left, delayed_right, fade_fraction)
-  global(detector_step, program_step, auto_release,
-    delay_change_fade_length)
+    rms_buffer_base, rms_window_samples, rms_write, rms_running_sum,
+    detector_power, detector_db, target_reduction_db, gain_reciprocal,
+    gain_reduction_db, program_reduction_db, effective_release_ms,
+    attack_step, release_ms, threshold_db, ratio_value, knee_db,
+    output_left, output_right)
+  local(input_power, previous_power, desired_reduction_db, target_reciprocal,
+    release_step, applied_gain, new_read_index, old_read_index, new_left,
+    new_right, old_left, old_right, delayed_left, delayed_right, fade_fraction)
+  global(program_step, auto_release, delay_change_fade_length)
   (
     // Linked stereo detection uses the larger channel energy, preserving image.
     input_power = max(input_left*input_left, input_right*input_right);
-    detector_step >= 0.999999 ? detector_power = input_power :
-      detector_power += detector_step*(input_power-detector_power);
+    rms_window_samples <= 0 ? (
+      // Zero milliseconds remains an instantaneous peak-style detector.
+      detector_power = input_power;
+    ) : (
+      previous_power = rms_buffer_base[rms_write];
+      rms_buffer_base[rms_write] = input_power;
+      rms_running_sum += input_power-previous_power;
+      rms_running_sum = max(0, rms_running_sum);
+      rms_write += 1;
+      rms_write >= rms_window_samples ? rms_write = 0;
+      detector_power = rms_running_sum/rms_window_samples;
+    );
     detector_power = max(0, detector_power);
     detector_db = AmplitudeToDB(sqrt(detector_power));
 
@@ -280,15 +327,22 @@ out_pin:right output
         (gain_reduction_db+program_reduction_db)/12);
     );
 
+    target_reciprocal = DBToAmplitude(desired_reduction_db);
     desired_reduction_db > gain_reduction_db ? (
-      gain_reduction_db += attack_step*
-        (desired_reduction_db-gain_reduction_db);
+      // ReaComp-like attack ballistics fit an exponential in reciprocal
+      // linear-gain space more closely than an exponential directly in dB.
+      gain_reciprocal += attack_step*
+        (target_reciprocal-gain_reciprocal);
+      gain_reciprocal = PSCClamp(gain_reciprocal, 1, DBToAmplitude(120));
+      gain_reduction_db = AmplitudeToDB(gain_reciprocal);
     ) : (
+      // Retain the existing dB-domain release law and synchronise q after it.
       release_step = OnePercentStep(effective_release_ms);
       gain_reduction_db += release_step*
         (desired_reduction_db-gain_reduction_db);
+      gain_reduction_db = PSCClamp(gain_reduction_db, 0, 120);
+      gain_reciprocal = DBToAmplitude(gain_reduction_db);
     );
-    gain_reduction_db = PSCClamp(gain_reduction_db, 0, 120);
 
     // Write before reading: a zero-sample pre-comp delay is a true zero delay.
     delay_left_base[delay_write] = input_left;
@@ -315,7 +369,7 @@ out_pin:right output
 
     delay_write += 1;
     delay_write >= delay_capacity ? delay_write = 0;
-    applied_gain = enabled ? DBToAmplitude(-gain_reduction_db) : 1;
+    applied_gain = enabled ? 1/max(1, gain_reciprocal) : 1;
     output_left = delayed_left*applied_gain;
     output_right = delayed_right*applied_gain;
   );
@@ -480,11 +534,11 @@ out_pin:right output
     );
 
     stage1.StageConfigure(stage1_threshold, stage1_ratio, stage1_knee,
-      stage1_attack, stage1_precomp, stage1_release);
+      stage1_attack, stage1_precomp, stage1_release, rms_smoothing);
     stage2.StageConfigure(stage2_threshold, stage2_ratio, stage2_knee,
-      stage2_attack, stage2_precomp, stage2_release);
+      stage2_attack, stage2_precomp, stage2_release, rms_smoothing);
     stage3.StageConfigure(stage3_threshold, stage3_ratio, stage3_knee,
-      stage3_attack, stage3_precomp, stage3_release);
+      stage3_attack, stage3_precomp, stage3_release, rms_smoothing);
 
     // Debug modes deliberately preserve the stage delay path, so static tests
     // can compare exactly aligned output while selectively disabling gain.
@@ -492,7 +546,6 @@ out_pin:right output
     stage2_active = processing_bypass < 0.5 && debug_stage_mode < 2 ? 1 : 0;
     stage3_active = serial_stages >= 3 && processing_bypass < 0.5 &&
       debug_stage_mode < 1 ? 1 : 0;
-    detector_step = OnePercentStep(PSCClamp(rms_smoothing, 0, 100));
     program_step = OnePercentStep(125);
     output_gain_step = OnePercentStep(5);
     output_gain_target = processing_bypass >= 0.5 ? 1 :
@@ -507,9 +560,12 @@ out_pin:right output
     last_manual_stages = manual_stages;
   );
 
-  stage1.StageInitialise(stage1_left_base, stage1_right_base, delay_capacity);
-  stage2.StageInitialise(stage2_left_base, stage2_right_base, delay_capacity);
-  stage3.StageInitialise(stage3_left_base, stage3_right_base, delay_capacity);
+  stage1.StageInitialise(stage1_left_base, stage1_right_base, delay_capacity,
+    stage1_rms_base, rms_capacity);
+  stage2.StageInitialise(stage2_left_base, stage2_right_base, delay_capacity,
+    stage2_rms_base, rms_capacity);
+  stage3.StageInitialise(stage3_left_base, stage3_right_base, delay_capacity,
+    stage3_rms_base, rms_capacity);
   total_gr_display.PeakHoldInitialise();
   stage1_gr_display.PeakHoldInitialise();
   stage2_gr_display.PeakHoldInitialise();
