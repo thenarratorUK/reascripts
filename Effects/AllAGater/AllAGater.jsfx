@@ -1,0 +1,350 @@
+desc:AllAGater
+tags: dynamics gate expander dialogue narration
+author: David Winter
+version: 1.0.0
+options:maxmem=1000000
+
+/*
+  AllAGater
+
+  ReaGate-style linked detector/state/envelope plus a curved finite-target
+  closed-state transfer. Curve 0% is exact unity. Increasing Curve morphs the
+  closed path toward a rounded gate-like drop to Target, while never applying
+  positive gain. At and below Target the closed path returns to unity.
+
+  The native JSFX slider panel is the complete UI for this functional v1.
+*/
+
+slider1:threshold_db=-40<-100,0,0.1>Threshold [dB]
+slider2:target_db=-80<-120,0,0.1>Target [dB]
+slider3:curve_percent=50<0,100,0.1>Curve [%]
+slider4:hysteresis_db=-3<-24,0,0.1>Hysteresis [dB]
+slider5:rms_size_ms=5<0,200,0.1>RMS Size [ms]
+slider6:attack_ms=35<0,500,0.1>Attack [ms]
+slider7:hold_ms=4<0,1000,1>Hold [ms]
+slider8:release_ms=100<0,2000,1>Release [ms]
+slider9:output_db=0<-24,24,0.1>Output [dB]
+slider10:pre_open_ms=2<0,100,0.1>Pre-open [ms]
+
+slider11:meter_detector_db=-120<-120,12,0.1>Detected Input [dB]
+slider12:meter_openness=0<0,1,0.01>Gate Openness
+slider13:meter_target_gr_db=0<0,120,0.1>Target GR [dB]
+slider14:meter_applied_gr_db=0<0,120,0.1>Applied GR [dB]
+
+in_pin:left input
+in_pin:right input
+out_pin:left output
+out_pin:right output
+
+@init
+
+  db_floor = -180;
+  target_floor_db = -120;
+  minimum_target_gap_db = 1;
+  maximum_rms_ms = 200;
+  maximum_pre_open_ms = 100;
+  parameter_epsilon = 0.000000001;
+
+  rms_capacity = max(1, ceil(max(srate, 1)*maximum_rms_ms*0.001)+1);
+  rms_buffer_base = 0;
+  pre_open_capacity = max(1,
+    ceil(max(srate, 1)*maximum_pre_open_ms*0.001)+1);
+  pre_open_left_base = rms_buffer_base+rms_capacity;
+  pre_open_right_base = pre_open_left_base+pre_open_capacity;
+  total_memory_samples = pre_open_right_base+pre_open_capacity;
+  memset(0, 0, total_memory_samples);
+
+  function AGClamp(value, lower_bound, upper_bound)
+  (
+    min(upper_bound, max(lower_bound, value));
+  );
+
+  function DBToAmplitude(value_db)
+  (
+    10^(value_db*0.05);
+  );
+
+  function AmplitudeToDB(value)
+  global(db_floor)
+  (
+    max(db_floor, 20*log10(max(abs(value), DBToAmplitude(db_floor))));
+  );
+
+  function TimeConstantStep(milliseconds)
+  local(samples)
+  global(srate)
+  (
+    milliseconds <= 0.0001 ? 1 : (
+      samples = max(milliseconds*0.001*max(srate, 1), 0.0001);
+      AGClamp(1-exp(-1/samples), 0, 1);
+    );
+  );
+
+  // Quintic smootherstep. Value, first derivative, and second derivative are
+  // continuous at both ends of the 0..1 interval.
+  function SmootherStep(value)
+  local(z)
+  (
+    z = AGClamp(value, 0, 1);
+    z*z*z*(z*(z*6-15)+10);
+  );
+
+  // Static AllAGater transfer. Threshold and Target are the two unity points.
+  // Curve morphs from exact identity toward a rounded finite-target gate.
+  // The mapping is constructed so mapped position v is never less than input
+  // position u, which guarantees target_output_db <= input_db.
+  function AllAGaterTargetGR(input_db)
+  local(span_db, u, z, s, v, target_output_db, result)
+  global(threshold_db, target_db, curve_amount, curve_width,
+    parameter_epsilon)
+  (
+    result = 0;
+
+    input_db < threshold_db && input_db > target_db &&
+      curve_amount > parameter_epsilon ? (
+      span_db = max(threshold_db-target_db, parameter_epsilon);
+      u = AGClamp((threshold_db-input_db)/span_db, 0, 1);
+      z = AGClamp(u/max(curve_width, parameter_epsilon), 0, 1);
+      s = SmootherStep(z);
+
+      v = u+curve_amount*(1-u)*s;
+      v = AGClamp(v, u, 1);
+
+      target_output_db = threshold_db-span_db*v;
+      result = max(0, input_db-target_output_db);
+    );
+
+    result;
+  );
+
+  function ConfigureRMS()
+  local(new_window_samples)
+  global(rms_size_ms, maximum_rms_ms, srate, rms_capacity, rms_buffer_base,
+    rms_window_samples, rms_write, rms_running_sum, detector_linear,
+    detector_db)
+  (
+    new_window_samples = floor(AGClamp(rms_size_ms, 0,
+      maximum_rms_ms)*0.001*max(srate, 1)+0.5);
+    new_window_samples = AGClamp(new_window_samples, 0, rms_capacity);
+    new_window_samples != rms_window_samples ? (
+      memset(rms_buffer_base, 0, rms_capacity);
+      rms_window_samples = new_window_samples;
+      rms_write = 0;
+      rms_running_sum = 0;
+      detector_linear = 0;
+      detector_db = -180;
+    );
+  );
+
+  function ApplyParameters()
+  local(original_threshold, original_target, original_curve,
+    parameter_change_mask)
+  global(threshold_db, target_db, curve_percent, curve_amount, curve_width,
+    target_floor_db, minimum_target_gap_db, hysteresis_db,
+    pre_open_ms, maximum_pre_open_ms, pre_open_capacity, pre_open_samples,
+    attack_ms, hold_ms, release_ms, output_db, srate,
+    attack_samples, hold_samples, release_samples, attack_step, release_step,
+    attack_counter, hold_counter, open_threshold_linear,
+    close_threshold_linear, output_gain_target, output_gain_step,
+    pdc_delay, pdc_bot_ch, pdc_top_ch, ext_tail_size)
+  (
+    original_threshold = threshold_db;
+    original_target = target_db;
+    original_curve = curve_percent;
+
+    threshold_db = AGClamp(threshold_db, -100, 0);
+    target_db = AGClamp(target_db, target_floor_db,
+      threshold_db-minimum_target_gap_db);
+    curve_percent = AGClamp(curve_percent, 0, 100);
+
+    curve_amount = curve_percent*0.01;
+
+    // v1 perceptual mapping. Keep this isolated: listening tests may justify a
+    // different Curve->width relationship without changing transfer invariants.
+    curve_width = 1-0.75*curve_amount;
+    curve_width = AGClamp(curve_width, 0.25, 1);
+
+    hysteresis_db = AGClamp(hysteresis_db, -24, 0);
+    open_threshold_linear = DBToAmplitude(threshold_db);
+    close_threshold_linear = DBToAmplitude(threshold_db+hysteresis_db);
+
+    pre_open_ms = AGClamp(pre_open_ms, 0, maximum_pre_open_ms);
+    pre_open_samples = floor(pre_open_ms*0.001*max(srate, 1)+0.5);
+    pre_open_samples = AGClamp(pre_open_samples, 0, pre_open_capacity-1);
+    pdc_delay = pre_open_samples;
+    pdc_bot_ch = 0;
+    pdc_top_ch = 2;
+    ext_tail_size = pre_open_samples;
+
+    attack_samples = max(0,
+      floor(AGClamp(attack_ms, 0, 500)*0.001*max(srate, 1)+0.5));
+    hold_samples = max(0,
+      floor(AGClamp(hold_ms, 0, 1000)*0.001*max(srate, 1)+0.5));
+    release_samples = max(0,
+      floor(AGClamp(release_ms, 0, 2000)*0.001*max(srate, 1)+0.5));
+    attack_step = attack_samples > 0 ? 1/attack_samples : 1;
+    release_step = release_samples > 0 ? 1/release_samples : 1;
+    attack_counter = min(attack_counter, attack_samples);
+    hold_counter = min(hold_counter, hold_samples);
+
+    output_gain_target = DBToAmplitude(AGClamp(output_db, -24, 24));
+    output_gain_step = TimeConstantStep(5);
+    ConfigureRMS();
+
+    parameter_change_mask = 0;
+    abs(threshold_db-original_threshold) > 0.0000001 ?
+      parameter_change_mask += 2^0;
+    abs(target_db-original_target) > 0.0000001 ?
+      parameter_change_mask += 2^1;
+    abs(curve_percent-original_curve) > 0.0000001 ?
+      parameter_change_mask += 2^2;
+    parameter_change_mask ? sliderchange(parameter_change_mask);
+  );
+
+  // Detector, state machine, static transfer, and output interpolation remain
+  // independent variables so the curve can be tuned without disturbing the
+  // measured ReaGate-style timing implementation.
+  rms_window_samples = 0;
+  rms_write = 0;
+  rms_running_sum = 0;
+  pre_open_write = 0;
+  detector_linear = 0;
+  detector_db = db_floor;
+  gate_latched = 0;
+  gate_state = 0;
+  openness = 0;
+  attack_counter = 0;
+  hold_counter = 0;
+  target_gr_db = 0;
+  closed_gain = 1;
+  actual_gain = 1;
+  actual_gr_db = 0;
+  output_gain_smoothed = DBToAmplitude(output_db);
+  curve_amount = 0;
+  curve_width = 1;
+  ApplyParameters();
+  output_gain_smoothed = output_gain_target;
+
+@slider
+
+  ApplyParameters();
+
+@block
+
+  // Native sliders are writable, so overwrite meter edits with quantised DSP
+  // state and notify REAPER only when a displayed value actually changes.
+  new_meter_detector_db = AGClamp(floor(detector_db*10+0.5)/10, -120, 12);
+  new_meter_openness = AGClamp(floor(openness*100+0.5)/100, 0, 1);
+  new_meter_target_gr_db = AGClamp(floor(target_gr_db*10+0.5)/10, 0, 120);
+  new_meter_applied_gr_db = AGClamp(floor(actual_gr_db*10+0.5)/10, 0, 120);
+  meter_change_mask = 0;
+  abs(meter_detector_db-new_meter_detector_db) > 0.000001 ? (
+    meter_detector_db = new_meter_detector_db;
+    meter_change_mask += 2^10;
+  );
+  abs(meter_openness-new_meter_openness) > 0.000001 ? (
+    meter_openness = new_meter_openness;
+    meter_change_mask += 2^11;
+  );
+  abs(meter_target_gr_db-new_meter_target_gr_db) > 0.000001 ? (
+    meter_target_gr_db = new_meter_target_gr_db;
+    meter_change_mask += 2^12;
+  );
+  abs(meter_applied_gr_db-new_meter_applied_gr_db) > 0.000001 ? (
+    meter_applied_gr_db = new_meter_applied_gr_db;
+    meter_change_mask += 2^13;
+  );
+  meter_change_mask ? sliderchange(meter_change_mask);
+
+@sample
+
+  // 1. Linked stereo Peak/RMS detector. RMS is a finite trailing rectangular
+  // window of max(abs(L), abs(R)), matching Expanderer's measured ReaGate model.
+  input_left = spl0;
+  input_right = spl1;
+  linked_sample = max(abs(input_left), abs(input_right));
+  linked_square = linked_sample*linked_sample;
+  rms_window_samples <= 0 ? (
+    detector_linear = linked_sample;
+  ) : (
+    oldest_square = rms_buffer_base[rms_write];
+    rms_buffer_base[rms_write] = linked_square;
+    rms_running_sum += linked_square-oldest_square;
+    rms_running_sum = max(0, rms_running_sum);
+    rms_write += 1;
+    rms_write >= rms_window_samples ? rms_write = 0;
+    detector_linear = sqrt(rms_running_sum/rms_window_samples);
+  );
+  detector_linear = max(0, detector_linear);
+  detector_db = AmplitudeToDB(detector_linear);
+
+  // 2. Hysteretic ReaGate-style state and linear-amplitude envelope.
+  open_trigger = detector_linear >= open_threshold_linear;
+  open_trigger ? (
+    gate_latched = 1;
+    attack_counter = attack_samples;
+    hold_counter = hold_samples;
+  );
+
+  gate_latched ? (
+    closing_eligible = detector_linear < close_threshold_linear;
+    opening_active = !closing_eligible || attack_counter > 0;
+    attack_counter > 0 ? attack_counter -= 1;
+
+    opening_active ? (
+      gate_state = openness < 1 ? 1 : 2;
+      attack_samples <= 0 ? openness = 1 :
+        openness = min(1, openness+attack_step);
+    ) : hold_counter > 0 ? (
+      gate_state = 2;
+      hold_counter -= 1;
+    ) : (
+      gate_state = 3;
+      release_samples <= 0 ? openness = 0 :
+        openness = max(0, openness-release_step);
+      openness <= 0 ? (
+        openness = 0;
+        gate_latched = 0;
+        gate_state = 0;
+      );
+    );
+  ) : (
+    gate_state = 0;
+    openness = 0;
+    attack_counter = 0;
+    hold_counter = 0;
+  );
+  openness = AGClamp(openness, 0, 1);
+  abs(openness) < 0.000000000001 ? openness = 0;
+
+  // 3. Curved finite-target closed-state law. This remains level-dependent
+  // after the gate closes. Above Threshold and at/below Target it is unity.
+  target_gr_db = AllAGaterTargetGR(detector_db);
+  target_gr_db = AGClamp(target_gr_db, 0, 120);
+  closed_gain = DBToAmplitude(-target_gr_db);
+
+  // 4. ReaGate's openness E is linear amplitude. Interpolate gains, not dB GR.
+  actual_gain = closed_gain+openness*(1-closed_gain);
+  actual_gain = AGClamp(actual_gain, closed_gain, 1);
+  actual_gr_db = max(0, -AmplitudeToDB(actual_gain));
+
+  output_gain_smoothed += output_gain_step*
+    (output_gain_target-output_gain_smoothed);
+  abs(output_gain_smoothed) < 0.000000000001 ?
+    output_gain_smoothed = 0;
+
+  applied_multiplier = actual_gain*output_gain_smoothed;
+
+  // Pre-open is genuine linked-stereo lookahead: current undelayed input drives
+  // detector/state while the audio path is delayed and reported as plug-in PDC.
+  pre_open_left_base[pre_open_write] = input_left;
+  pre_open_right_base[pre_open_write] = input_right;
+  pre_open_read = pre_open_write-pre_open_samples;
+  pre_open_read < 0 ? pre_open_read += pre_open_capacity;
+  delayed_left = pre_open_left_base[pre_open_read];
+  delayed_right = pre_open_right_base[pre_open_read];
+  pre_open_write += 1;
+  pre_open_write >= pre_open_capacity ? pre_open_write = 0;
+
+  spl0 = delayed_left*applied_multiplier;
+  spl1 = delayed_right*applied_multiplier;
