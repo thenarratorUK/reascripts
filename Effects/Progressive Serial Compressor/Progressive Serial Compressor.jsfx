@@ -1,11 +1,11 @@
-desc:Progressive Serial Compressor
+desc:Compressorer
 tags: dynamics compressor serial vocal speech
 author: David Winter
-version: 1.0.3
+version: 1.0.4
 options:maxmem=1000000
 
 /*
-  Progressive Serial Compressor
+  Compressorer
 
   Three independently detected compressor stages connected in series.  This is
   an original implementation whose knee and envelope ballistics follow
@@ -863,7 +863,7 @@ out_pin:right output
   gfx_set(0.89, 0.93, 0.92, 1);
   gfx_x = ui_margin;
   gfx_y = 7*gfx_scale;
-  gfx_drawstr("Progressive Serial Compressor");
+  gfx_drawstr("Compressorer");
   gfx_setfont(0, "Arial", 9*gfx_scale);
 
   // Simple page selectors; the regular linked controls remain the first page.

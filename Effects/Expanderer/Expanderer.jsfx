@@ -1,0 +1,386 @@
+desc:Expanderer
+tags: dynamics gate expander dialogue narration
+author: David Winter
+version: 1.0.0
+options:maxmem=1000000
+
+/*
+  Expanderer
+
+  ReaGate-style linked detector/state/envelope plus a returning below-threshold
+  compression curve. Maximum attenuation occurs at threshold, diminishes as
+  the signal gets quieter, and reaches unity again at the derived Target.
+
+  The native JSFX slider panel is the complete UI for this functional v1.
+*/
+
+slider1:threshold_db=-38<-100,0,0.1>Threshold [dB]
+slider2:reduction_db=22<0,40,0.1>Reduction at Threshold [dB]
+slider3:ratio_value=2.1<1.01,20,0.01>Ratio
+slider4:target_db=-80<-120,0,0.1>Return-to-unity Target [dB]
+slider5:hysteresis_db=-16<-24,0,0.1>Hysteresis [dB]
+slider6:rms_size_ms=5<0,200,0.1>RMS Size [ms]
+slider7:attack_ms=35<0,500,0.1>Attack [ms]
+slider8:hold_ms=4<0,1000,1>Hold [ms]
+slider9:release_ms=100<0,2000,1>Release [ms]
+slider10:output_db=0<-24,24,0.1>Output [dB]
+slider11:pre_open_ms=2<0,100,0.1>Pre-open [ms]
+
+slider12:meter_detector_db=-120<-120,12,0.1>Detected Input [dB]
+slider13:meter_openness=0<0,1,0.01>Gate Openness
+slider14:meter_target_gr_db=0<0,40,0.1>Target GR [dB]
+slider15:meter_applied_gr_db=0<0,40,0.1>Applied GR [dB]
+
+in_pin:left input
+in_pin:right input
+out_pin:left output
+out_pin:right output
+
+@init
+
+  db_floor = -180;
+  ratio_minimum = 1.01;
+  ratio_maximum = 20;
+  target_floor_db = -120;
+  maximum_rms_ms = 200;
+  maximum_pre_open_ms = 100;
+  parameter_epsilon = 0.000000001;
+
+  rms_capacity = max(1, ceil(max(srate, 1)*maximum_rms_ms*0.001)+1);
+  rms_buffer_base = 0;
+  pre_open_capacity = max(1,
+    ceil(max(srate, 1)*maximum_pre_open_ms*0.001)+1);
+  pre_open_left_base = rms_buffer_base+rms_capacity;
+  pre_open_right_base = pre_open_left_base+pre_open_capacity;
+  total_memory_samples = pre_open_right_base+pre_open_capacity;
+  memset(0, 0, total_memory_samples);
+
+  function RGClamp(value, lower_bound, upper_bound)
+  (
+    min(upper_bound, max(lower_bound, value));
+  );
+
+  function DBToAmplitude(value_db)
+  (
+    10^(value_db*0.05);
+  );
+
+  function AmplitudeToDB(value)
+  global(db_floor)
+  (
+    max(db_floor, 20*log10(max(abs(value), DBToAmplitude(db_floor))));
+  );
+
+  function TimeConstantStep(milliseconds)
+  local(samples)
+  global(srate)
+  (
+    milliseconds <= 0.0001 ? 1 : (
+      samples = max(milliseconds*0.001*max(srate, 1), 0.0001);
+      RGClamp(1-exp(-1/samples), 0, 1);
+    );
+  );
+
+  // Ratio is the authoritative control after a Ratio, Threshold, or Reduction
+  // edit. If the -120 dB Target floor makes that combination impossible,
+  // Reduction is clamped to the largest value that preserves the chosen Ratio.
+  function ResolveFromRatio()
+  local(ratio_slope, maximum_reduction)
+  global(threshold_db, reduction_db, ratio_value, target_db,
+    ratio_minimum, ratio_maximum, target_floor_db, parameter_epsilon)
+  (
+    threshold_db = RGClamp(threshold_db, -100, 0);
+    ratio_value = RGClamp(ratio_value, ratio_minimum, ratio_maximum);
+    reduction_db = RGClamp(reduction_db, 0, 40);
+    ratio_slope = 1-1/ratio_value;
+    maximum_reduction = max(0,
+      (threshold_db-target_floor_db)*ratio_slope);
+    reduction_db = min(reduction_db, maximum_reduction);
+
+    reduction_db <= parameter_epsilon ? (
+      target_db = threshold_db;
+    ) : (
+      target_db = threshold_db-reduction_db/max(ratio_slope,
+        parameter_epsilon);
+      target_db = RGClamp(target_db, target_floor_db, threshold_db);
+    );
+  );
+
+  // Target is authoritative only when it is the sole coupled control edited.
+  // Its valid interval corresponds exactly to finite Ratios 1.01:1 through
+  // 20:1. Impossible edits snap to the nearest representable Target.
+  function ResolveFromTarget()
+  local(maximum_reduction, minimum_distance, maximum_distance,
+    target_lower_bound, target_upper_bound, target_distance, denominator)
+  global(threshold_db, reduction_db, ratio_value, target_db,
+    ratio_minimum, ratio_maximum, target_floor_db, parameter_epsilon)
+  (
+    threshold_db = RGClamp(threshold_db, -100, 0);
+    reduction_db = RGClamp(reduction_db, 0, 40);
+    maximum_reduction = max(0, (threshold_db-target_floor_db)*
+      (1-1/ratio_maximum));
+    reduction_db = min(reduction_db, maximum_reduction);
+
+    reduction_db <= parameter_epsilon ? (
+      target_db = threshold_db;
+      ratio_value = RGClamp(ratio_value, ratio_minimum, ratio_maximum);
+    ) : (
+      minimum_distance = reduction_db/(1-1/ratio_maximum);
+      maximum_distance = reduction_db/(1-1/ratio_minimum);
+      target_lower_bound = max(target_floor_db,
+        threshold_db-maximum_distance);
+      target_upper_bound = threshold_db-minimum_distance;
+      target_db = RGClamp(target_db, target_lower_bound,
+        target_upper_bound);
+      target_distance = max(threshold_db-target_db,
+        reduction_db+parameter_epsilon);
+      denominator = max(parameter_epsilon,
+        1-reduction_db/target_distance);
+      ratio_value = RGClamp(1/denominator, ratio_minimum, ratio_maximum);
+    );
+  );
+
+  function ConfigureRMS()
+  local(new_window_samples)
+  global(rms_size_ms, maximum_rms_ms, srate, rms_capacity, rms_buffer_base,
+    rms_window_samples, rms_write, rms_running_sum, detector_linear,
+    detector_db)
+  (
+    new_window_samples = floor(RGClamp(rms_size_ms, 0,
+      maximum_rms_ms)*0.001*max(srate, 1)+0.5);
+    new_window_samples = RGClamp(new_window_samples, 0, rms_capacity);
+    new_window_samples != rms_window_samples ? (
+      memset(rms_buffer_base, 0, rms_capacity);
+      rms_window_samples = new_window_samples;
+      rms_write = 0;
+      rms_running_sum = 0;
+      detector_linear = 0;
+      detector_db = -180;
+    );
+  );
+
+  function ApplyParameters()
+  local(original_threshold, original_reduction, original_ratio,
+    original_target, threshold_changed, reduction_changed, ratio_changed,
+    target_changed, target_is_driver, parameter_change_mask)
+  global(threshold_db, reduction_db, ratio_value, target_db, hysteresis_db,
+    pre_open_ms, maximum_pre_open_ms, pre_open_capacity, pre_open_samples,
+    attack_ms, hold_ms, release_ms, output_db, srate,
+    parameters_initialised, last_threshold_db, last_reduction_db,
+    last_ratio_value, last_target_db, attack_samples, hold_samples,
+    release_samples, attack_step, release_step, attack_counter, hold_counter,
+    open_threshold_linear, close_threshold_linear, output_gain_target,
+    output_gain_step, pdc_delay, pdc_bot_ch, pdc_top_ch, ext_tail_size)
+  (
+    original_threshold = threshold_db;
+    original_reduction = reduction_db;
+    original_ratio = ratio_value;
+    original_target = target_db;
+
+    threshold_changed = abs(threshold_db-last_threshold_db) > 0.0000001;
+    reduction_changed = abs(reduction_db-last_reduction_db) > 0.0000001;
+    ratio_changed = abs(ratio_value-last_ratio_value) > 0.0000001;
+    target_changed = abs(target_db-last_target_db) > 0.0000001;
+    target_is_driver = parameters_initialised && target_changed &&
+      !threshold_changed && !reduction_changed && !ratio_changed;
+    target_is_driver ? ResolveFromTarget() : ResolveFromRatio();
+
+    hysteresis_db = RGClamp(hysteresis_db, -24, 0);
+    open_threshold_linear = DBToAmplitude(threshold_db);
+    close_threshold_linear = DBToAmplitude(threshold_db+hysteresis_db);
+
+    pre_open_ms = RGClamp(pre_open_ms, 0, maximum_pre_open_ms);
+    pre_open_samples = floor(pre_open_ms*0.001*max(srate, 1)+0.5);
+    pre_open_samples = RGClamp(pre_open_samples, 0, pre_open_capacity-1);
+    pdc_delay = pre_open_samples;
+    pdc_bot_ch = 0;
+    pdc_top_ch = 2;
+    ext_tail_size = pre_open_samples;
+
+    attack_samples = max(0,
+      floor(RGClamp(attack_ms, 0, 500)*0.001*max(srate, 1)+0.5));
+    hold_samples = max(0,
+      floor(RGClamp(hold_ms, 0, 1000)*0.001*max(srate, 1)+0.5));
+    release_samples = max(0,
+      floor(RGClamp(release_ms, 0, 2000)*0.001*max(srate, 1)+0.5));
+    attack_step = attack_samples > 0 ? 1/attack_samples : 1;
+    release_step = release_samples > 0 ? 1/release_samples : 1;
+    attack_counter = min(attack_counter, attack_samples);
+    hold_counter = min(hold_counter, hold_samples);
+
+    output_gain_target = DBToAmplitude(RGClamp(output_db, -24, 24));
+    output_gain_step = TimeConstantStep(5);
+    ConfigureRMS();
+
+    parameter_change_mask = 0;
+    abs(threshold_db-original_threshold) > 0.0000001 ?
+      parameter_change_mask += 2^0;
+    abs(reduction_db-original_reduction) > 0.0000001 ?
+      parameter_change_mask += 2^1;
+    abs(ratio_value-original_ratio) > 0.0000001 ?
+      parameter_change_mask += 2^2;
+    abs(target_db-original_target) > 0.0000001 ?
+      parameter_change_mask += 2^3;
+    parameter_change_mask ? sliderchange(parameter_change_mask);
+
+    last_threshold_db = threshold_db;
+    last_reduction_db = reduction_db;
+    last_ratio_value = ratio_value;
+    last_target_db = target_db;
+    parameters_initialised = 1;
+  );
+
+  // Detector, state machine, returning gain law, and output interpolation are
+  // deliberately independent variables to support later measured refinements.
+  rms_window_samples = 0;
+  rms_write = 0;
+  rms_running_sum = 0;
+  pre_open_write = 0;
+  detector_linear = 0;
+  detector_db = db_floor;
+  gain_detector_db = db_floor;
+  gate_latched = 0;
+  gate_state = 0;
+  openness = 0;
+  attack_counter = 0;
+  hold_counter = 0;
+  target_gr_db = 0;
+  closed_gain = 1;
+  actual_gain = 1;
+  actual_gr_db = 0;
+  output_gain_smoothed = DBToAmplitude(output_db);
+  parameters_initialised = 0;
+  last_threshold_db = threshold_db;
+  last_reduction_db = reduction_db;
+  last_ratio_value = ratio_value;
+  last_target_db = target_db;
+  ApplyParameters();
+  output_gain_smoothed = output_gain_target;
+
+@slider
+
+  ApplyParameters();
+
+@block
+
+  // Native sliders are writable, so overwrite meter edits with quantised DSP
+  // state and only notify REAPER when a displayed value actually changes.
+  new_meter_detector_db = RGClamp(floor(detector_db*10+0.5)/10, -120, 12);
+  new_meter_openness = RGClamp(floor(openness*100+0.5)/100, 0, 1);
+  new_meter_target_gr_db = RGClamp(floor(target_gr_db*10+0.5)/10, 0, 40);
+  new_meter_applied_gr_db = RGClamp(floor(actual_gr_db*10+0.5)/10, 0, 40);
+  meter_change_mask = 0;
+  abs(meter_detector_db-new_meter_detector_db) > 0.000001 ? (
+    meter_detector_db = new_meter_detector_db;
+    meter_change_mask += 2^11;
+  );
+  abs(meter_openness-new_meter_openness) > 0.000001 ? (
+    meter_openness = new_meter_openness;
+    meter_change_mask += 2^12;
+  );
+  abs(meter_target_gr_db-new_meter_target_gr_db) > 0.000001 ? (
+    meter_target_gr_db = new_meter_target_gr_db;
+    meter_change_mask += 2^13;
+  );
+  abs(meter_applied_gr_db-new_meter_applied_gr_db) > 0.000001 ? (
+    meter_applied_gr_db = new_meter_applied_gr_db;
+    meter_change_mask += 2^14;
+  );
+  meter_change_mask ? sliderchange(meter_change_mask);
+
+@sample
+
+  // 1. Linked stereo Peak/RMS detector. RMS is a finite trailing rectangular
+  // window of max(abs(L), abs(R)), not an exponential smoother.
+  input_left = spl0;
+  input_right = spl1;
+  linked_sample = max(abs(input_left), abs(input_right));
+  linked_square = linked_sample*linked_sample;
+  rms_window_samples <= 0 ? (
+    detector_linear = linked_sample;
+  ) : (
+    oldest_square = rms_buffer_base[rms_write];
+    rms_buffer_base[rms_write] = linked_square;
+    rms_running_sum += linked_square-oldest_square;
+    rms_running_sum = max(0, rms_running_sum);
+    rms_write += 1;
+    rms_write >= rms_window_samples ? rms_write = 0;
+    detector_linear = sqrt(rms_running_sum/rms_window_samples);
+  );
+  detector_linear = max(0, detector_linear);
+  detector_db = AmplitudeToDB(detector_linear);
+
+  // 2. Hysteretic ReaGate-style state and linear-amplitude envelope.
+  open_trigger = detector_linear >= open_threshold_linear;
+  open_trigger ? (
+    gate_latched = 1;
+    attack_counter = attack_samples;
+    hold_counter = hold_samples;
+  );
+
+  gate_latched ? (
+    closing_eligible = detector_linear < close_threshold_linear;
+    opening_active = !closing_eligible || attack_counter > 0;
+    attack_counter > 0 ? attack_counter -= 1;
+
+    opening_active ? (
+      gate_state = openness < 1 ? 1 : 2;
+      attack_samples <= 0 ? openness = 1 :
+        openness = min(1, openness+attack_step);
+    ) : hold_counter > 0 ? (
+      gate_state = 2;
+      hold_counter -= 1;
+    ) : (
+      gate_state = 3;
+      release_samples <= 0 ? openness = 0 :
+        openness = max(0, openness-release_step);
+      openness <= 0 ? (
+        openness = 0;
+        gate_latched = 0;
+        gate_state = 0;
+      );
+    );
+  ) : (
+    gate_state = 0;
+    openness = 0;
+    attack_counter = 0;
+    hold_counter = 0;
+  );
+  openness = RGClamp(openness, 0, 1);
+  abs(openness) < 0.000000000001 ? openness = 0;
+
+  // 3. Returning closed-state gain law. Detector level is capped at Threshold
+  // for this calculation so maximum attenuation is M, never more. Beneath the
+  // derived Target the reduction clamps to zero and the closed path is unity.
+  gain_detector_db = min(detector_db, threshold_db);
+  compression_slope = 1-1/max(ratio_value, ratio_minimum);
+  target_gr_db = reduction_db-
+    (threshold_db-gain_detector_db)*compression_slope;
+  target_gr_db = RGClamp(target_gr_db, 0, reduction_db);
+  closed_gain = DBToAmplitude(-target_gr_db);
+
+  // 4. ReaGate's E is linear amplitude. Interpolate gains, not dB reduction.
+  actual_gain = closed_gain+openness*(1-closed_gain);
+  actual_gain = RGClamp(actual_gain, closed_gain, 1);
+  actual_gr_db = max(0, -AmplitudeToDB(actual_gain));
+  output_gain_smoothed += output_gain_step*
+    (output_gain_target-output_gain_smoothed);
+  abs(output_gain_smoothed) < 0.000000000001 ?
+    output_gain_smoothed = 0;
+
+  applied_multiplier = actual_gain*output_gain_smoothed;
+
+  // Pre-open is genuine linked-stereo lookahead: the current undelayed input
+  // drives the detector and state machine, while audio is delayed by the
+  // requested sample count and reported to REAPER as plug-in delay.
+  pre_open_left_base[pre_open_write] = input_left;
+  pre_open_right_base[pre_open_write] = input_right;
+  pre_open_read = pre_open_write-pre_open_samples;
+  pre_open_read < 0 ? pre_open_read += pre_open_capacity;
+  delayed_left = pre_open_left_base[pre_open_read];
+  delayed_right = pre_open_right_base[pre_open_read];
+  pre_open_write += 1;
+  pre_open_write >= pre_open_capacity ? pre_open_write = 0;
+
+  spl0 = delayed_left*applied_multiplier;
+  spl1 = delayed_right*applied_multiplier;

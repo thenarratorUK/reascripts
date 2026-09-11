@@ -23,7 +23,7 @@ opens this guide from its **Open Guide** button.
   adaptive, and learned-plus-adaptive modes. The package includes the companion
   time-selection learning action and requires SWS/S&M for that action. This is
   an early beta release intended for testing.
-- **Adaptive EQ with Reference Matching** — a mono narration EQ that learns a
+- **Adapterer** — a mono narration EQ that learns a
   fixed tonal baseline, continually corrects changes away from that baseline,
   and can optionally match one of 14 embedded reference profiles. Adaptivity
   scales the live consistency correction, while Auto Gain uses a fixed
@@ -33,9 +33,14 @@ opens this guide from its **Open Guide** button.
   fast, medium and slow correction, optional lookahead, speech/room-tone
   learning, a room-tone threshold learner, and an ambience-preserving path.
   This is an early beta release intended for testing.
-- **Progressive Serial Compressor** — two or three gentle, independently
+- **Compressorer** — two or three gentle, independently
   detected compressor stages in series, with linked threshold/knee spacing,
   staggered timing, per-stage lookahead and an optional manual stage mode.
+  This is an early beta release intended for testing.
+- **Expanderer** — a linked-stereo dialogue gate whose attenuation is greatest
+  near threshold, progressively returns to unity toward a lower target, and
+  leaves still-quieter room tone unchanged. It includes finite RMS detection,
+  signed hysteresis, linear-amplitude gate timing and configurable Pre-open.
   This is an early beta release intended for testing.
 
 ## Install with ReaPack

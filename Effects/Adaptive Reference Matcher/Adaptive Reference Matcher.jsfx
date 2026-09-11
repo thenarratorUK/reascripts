@@ -1,7 +1,7 @@
-desc:Adaptive Reference Matcher
+desc:Adapterer
 // @description Fixed-anchor adaptive mono narration EQ with 14 embedded references
 // @author David Winter
-// @version 0.7.1
+// @version 0.7.2
 // @about
 //   Branded custom-interface release. Learns and persists a fixed source
 //   anchor, combines linear reference matching with live self-consistency, and
@@ -148,7 +148,7 @@ out_pin:mono output
   loudness_fft_bin_profile_index = 3800000;
 
   // BEGIN INLINED DERIVED REFERENCE DATA
-// Adaptive Reference Matcher reference data
+// Adapterer reference data
 // Profile format version 1. Derived numerical data only; no source audio.
 profile_format_version = 1;
 profile_count = 14;
