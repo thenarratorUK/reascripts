@@ -40,6 +40,8 @@ local NAME_CHAR_FX_PARENT = "Character FX"
 
 -- EPS for comparing times (contiguity / overlap)
 local EPS = 1e-9
+local PARENT_FX_MERGE_EPS = 0.000001
+local ENV_SHAPE_SQUARE = 1
 
 -- Time-selection-only mode
 --  - If TIME_SELECTION_ONLY is true, the script will operate ONLY inside the current time selection.
@@ -127,8 +129,9 @@ local function collect_segments_for_track_time_sel(tr, ts_start, ts_end)
 end
 
 -- Merge overlapping and contiguous segments
-local function merge_segments(segments)
+local function merge_segments(segments, merge_eps)
   if #segments == 0 then return {} end
+  merge_eps = merge_eps or EPS
 
   table.sort(segments, function(a, b)
     if a.start == b.start then
@@ -142,7 +145,7 @@ local function merge_segments(segments)
 
   for i = 2, #segments do
     local s = segments[i]
-    if math.abs(s.start - cur.endt) <= EPS or s.start <= cur.endt then
+    if s.start <= cur.endt + merge_eps then
       -- contiguous or overlapping: extend
       if s.endt > cur.endt then
         cur.endt = s.endt
@@ -288,10 +291,10 @@ local function rebuild_mute_envelope(env, segments)
     local t2 = t0 + (2 * EPS)
     local t3 = t0 + (3 * EPS)
   
-    reaper.InsertEnvelopePointEx(env, -1, t0, 0.0, 0, 0, false, true) -- mute
-    reaper.InsertEnvelopePointEx(env, -1, t1, 1.0, 0, 0, false, true) -- unmute
-    reaper.InsertEnvelopePointEx(env, -1, t2, 1.0, 0, 0, false, true) -- unmute
-    reaper.InsertEnvelopePointEx(env, -1, t3, 0.0, 0, 0, false, true) -- mute
+    reaper.InsertEnvelopePointEx(env, -1, t0, 0.0, ENV_SHAPE_SQUARE, 0, false, true) -- mute
+    reaper.InsertEnvelopePointEx(env, -1, t1, 1.0, ENV_SHAPE_SQUARE, 0, false, true) -- unmute
+    reaper.InsertEnvelopePointEx(env, -1, t2, 1.0, ENV_SHAPE_SQUARE, 0, false, true) -- unmute
+    reaper.InsertEnvelopePointEx(env, -1, t3, 0.0, ENV_SHAPE_SQUARE, 0, false, true) -- mute
   
     reaper.Envelope_SortPoints(env)
     return
@@ -304,7 +307,7 @@ local function rebuild_mute_envelope(env, segments)
   local EPS_TIME = 0.000001
 
   -- Start fully muted from t=0
-  reaper.InsertEnvelopePointEx(env, -1, 0.0, 0.0, 0, 0, false, true)
+  reaper.InsertEnvelopePointEx(env, -1, 0.0, 0.0, ENV_SHAPE_SQUARE, 0, false, true)
 
   for _, seg in ipairs(segments) do
     local s = seg.start
@@ -315,13 +318,13 @@ local function rebuild_mute_envelope(env, segments)
     local after  = e + EPS_TIME
 
     -- Just before start: muted (0.0)
-    reaper.InsertEnvelopePointEx(env, -1, before, 0.0, 0, 0, false, true)
+    reaper.InsertEnvelopePointEx(env, -1, before, 0.0, ENV_SHAPE_SQUARE, 0, false, true)
     -- At start: unmuted (1.0)
-    reaper.InsertEnvelopePointEx(env, -1, s,      1.0, 0, 0, false, true)
+    reaper.InsertEnvelopePointEx(env, -1, s,      1.0, ENV_SHAPE_SQUARE, 0, false, true)
     -- At end: still unmuted (1.0)
-    reaper.InsertEnvelopePointEx(env, -1, e,      1.0, 0, 0, false, true)
+    reaper.InsertEnvelopePointEx(env, -1, e,      1.0, ENV_SHAPE_SQUARE, 0, false, true)
     -- Just after end: muted again (0.0)
-    reaper.InsertEnvelopePointEx(env, -1, after,  0.0, 0, 0, false, true)
+    reaper.InsertEnvelopePointEx(env, -1, after,  0.0, ENV_SHAPE_SQUARE, 0, false, true)
   end
 
   reaper.Envelope_SortPoints(env)
@@ -370,12 +373,12 @@ local function rebuild_mute_envelope_time_sel(env, segments, ts_start, ts_end)
   reaper.DeleteEnvelopePointRangeEx(env, -1, win_start - EPS_TIME, win_end + EPS_TIME)
 
   -- Anchor the boundary values so outside behaviour remains continuous
-  reaper.InsertEnvelopePointEx(env, -1, win_start, left_val,  0, 0, false, true)
-  reaper.InsertEnvelopePointEx(env, -1, win_end,   right_val, 0, 0, false, true)
+  reaper.InsertEnvelopePointEx(env, -1, win_start, left_val,  ENV_SHAPE_SQUARE, 0, false, true)
+  reaper.InsertEnvelopePointEx(env, -1, win_end,   right_val, ENV_SHAPE_SQUARE, 0, false, true)
 
   -- Baseline inside the window: muted
-  reaper.InsertEnvelopePointEx(env, -1, inner_start, 0.0, 0, 0, false, true)
-  reaper.InsertEnvelopePointEx(env, -1, inner_end,   0.0, 0, 0, false, true)
+  reaper.InsertEnvelopePointEx(env, -1, inner_start, 0.0, ENV_SHAPE_SQUARE, 0, false, true)
+  reaper.InsertEnvelopePointEx(env, -1, inner_end,   0.0, ENV_SHAPE_SQUARE, 0, false, true)
 
   -- Apply the 4-point pattern for segments fully inside the time selection
   for _, seg in ipairs(segments) do
@@ -394,14 +397,14 @@ local function rebuild_mute_envelope_time_sel(env, segments, ts_start, ts_end)
 
       if ss <= ee then
         if b < ss then
-          reaper.InsertEnvelopePointEx(env, -1, b,  0.0, 0, 0, false, true)
+          reaper.InsertEnvelopePointEx(env, -1, b,  0.0, ENV_SHAPE_SQUARE, 0, false, true)
         end
 
-        reaper.InsertEnvelopePointEx(env, -1, ss, 1.0, 0, 0, false, true)
-        reaper.InsertEnvelopePointEx(env, -1, ee, 1.0, 0, 0, false, true)
+        reaper.InsertEnvelopePointEx(env, -1, ss, 1.0, ENV_SHAPE_SQUARE, 0, false, true)
+        reaper.InsertEnvelopePointEx(env, -1, ee, 1.0, ENV_SHAPE_SQUARE, 0, false, true)
 
         if a > ee then
-          reaper.InsertEnvelopePointEx(env, -1, a,  0.0, 0, 0, false, true)
+          reaper.InsertEnvelopePointEx(env, -1, a,  0.0, ENV_SHAPE_SQUARE, 0, false, true)
         end
       end
     end
@@ -771,7 +774,7 @@ for _, parent in ipairs(sources) do
           end
         end
 
-        local merged = merge_segments(all_segs)
+        local merged = merge_segments(all_segs, PARENT_FX_MERGE_EPS)
 		if time_selection_only then
 		  rebuild_mute_envelope_time_sel(env, merged, ts_start, ts_end)
 		else
