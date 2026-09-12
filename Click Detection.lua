@@ -292,11 +292,46 @@ local function rms_db_in_range(accessor, t0, t1, sr, numch)
   return db_from_amp(math.abs(rms))
 end
 
+local function add_track_once(out, seen, tr)
+  if not tr then return end
+  local key = tostring(tr)
+  if seen[key] then return end
+  seen[key] = true
+  out[#out+1] = tr
+end
+
+local function add_folder_children(out, seen, folder_tr)
+  if not folder_tr then return end
+
+  local folder_delta = reaper.GetMediaTrackInfo_Value(folder_tr, "I_FOLDERDEPTH")
+  if folder_delta <= 0 then return end
+
+  local folder_idx = math.floor(reaper.GetMediaTrackInfo_Value(folder_tr, "IP_TRACKNUMBER") or 0) - 1
+  if folder_idx < 0 then return end
+
+  local depth = 1
+  local track_count = reaper.CountTracks(0)
+  for i = folder_idx + 1, track_count - 1 do
+    local child = reaper.GetTrack(0, i)
+    if not child then break end
+
+    add_track_once(out, seen, child)
+
+    local child_delta = reaper.GetMediaTrackInfo_Value(child, "I_FOLDERDEPTH") or 0
+    depth = depth + child_delta
+    if depth <= 0 then break end
+  end
+end
+
 local function find_tracks_by_names(names)
   local out = {}
+  local seen = {}
   for _, n in ipairs(names or {}) do
     local tr = find_track_by_name(n)
-    if tr then out[#out+1] = tr end
+    if tr then
+      add_track_once(out, seen, tr)
+      add_folder_children(out, seen, tr)
+    end
   end
   return out
 end
