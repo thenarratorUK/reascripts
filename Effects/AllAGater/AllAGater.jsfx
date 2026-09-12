@@ -15,10 +15,10 @@ options:maxmem=1000000
   The native JSFX slider panel is the complete UI for this functional v1.
 */
 
-slider1:threshold_db=-40<-100,0,0.1>Threshold [dB]
+slider1:threshold_db=-38<-100,0,0.1>Threshold [dB]
 slider2:target_db=-80<-120,0,0.1>Target [dB]
 slider3:curve_percent=50<0,100,0.1>Curve [%]
-slider4:hysteresis_db=-3<-24,0,0.1>Hysteresis [dB]
+slider4:hysteresis_db=-16<-24,0,0.1>Hysteresis [dB]
 slider5:rms_size_ms=5<0,200,0.1>RMS Size [ms]
 slider6:attack_ms=35<0,500,0.1>Attack [ms]
 slider7:hold_ms=4<0,1000,1>Hold [ms]
