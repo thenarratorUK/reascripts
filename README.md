@@ -29,6 +29,11 @@ opens this guide from its **Open Guide** button.
   scales the live consistency correction, while Auto Gain uses a fixed
   integrated-loudness trim derived during Learn. This is a beta release
   intended for testing.
+- **AllAGater** — a linked-stereo dialogue gate with a continuously variable
+  curved closed-state transfer between Threshold and Target. It shares
+  Expanderer's finite RMS detector, signed hysteresis, linear-amplitude timing
+  and configurable Pre-open, while Curve controls how strongly the closed path
+  bends toward Target. This is an early beta release intended for testing.
 - **TriLeveler Pro** — a long-form voice leveller with separately limited
   fast, medium and slow correction, optional lookahead, speech/room-tone
   learning, a room-tone threshold learner, and an ambience-preserving path.

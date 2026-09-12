@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<index version="1" name="thenarratorUK ReaScripts" commit="566a5f2c8c68531b95d42b698153e8c7f80d1050">
+<index version="1" name="thenarratorUK ReaScripts" commit="5e8263e38935b7871340046da1beab1db41dd7d3">
   <category name="Plugins">
     <reapack name="Adaptive Phase Rotator.jsfx" type="effect" desc="Adaptive Phase Rotator">
       <version name="0.3.0" author="David Winter" time="2026-09-06T18:50:50Z">
@@ -8,18 +8,24 @@
         <source type="script" main="main" file="Learn Adaptive Phase Rotator from Time Selection.lua">https://github.com/thenarratorUK/reascripts/raw/0594b63e005af1eaebe750cca0fba1f1a5161cac/Scripts/Adaptive%20Phase%20Rotator/Learn%20Adaptive%20Phase%20Rotator%20from%20Time%20Selection.lua</source>
       </version>
     </reapack>
-    <reapack name="Adaptive Reference Matcher.jsfx" type="effect" desc="Adapterer">
-      <version name="0.7.2" author="David Winter" time="2026-09-11T19:17:38Z">
-        <changelog><![CDATA[Renames the displayed product to Adapterer while retaining the established package filename and path so existing REAPER projects continue to resolve the effect. DSP, controls, GUI and learned-state behaviour are unchanged.]]></changelog>
-        <source main="main">https://github.com/thenarratorUK/reascripts/raw/566a5f2c8c68531b95d42b698153e8c7f80d1050/Effects/Adaptive%20Reference%20Matcher/Adaptive%20Reference%20Matcher.jsfx</source>
-        <source file="adaptive-eq-gui.png">https://github.com/thenarratorUK/reascripts/raw/566a5f2c8c68531b95d42b698153e8c7f80d1050/Effects/Adaptive%20Reference%20Matcher/adaptive-eq-gui.png</source>
-        <source file="adaptive-eq-gui@2x.png">https://github.com/thenarratorUK/reascripts/raw/566a5f2c8c68531b95d42b698153e8c7f80d1050/Effects/Adaptive%20Reference%20Matcher/adaptive-eq-gui%402x.png</source>
+    <reapack name="Adapterer.jsfx" type="effect" desc="Adapterer">
+      <version name="0.7.2" author="David Winter" time="2026-09-12T13:12:10Z">
+        <changelog><![CDATA[Publishes the final product and package name at Effects/Adapterer/Adapterer.jsfx. DSP, controls, GUI and learned-state behaviour are unchanged.]]></changelog>
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/5e8263e38935b7871340046da1beab1db41dd7d3/Effects/Adapterer/Adapterer.jsfx</source>
+        <source file="adaptive-eq-gui.png">https://github.com/thenarratorUK/reascripts/raw/5e8263e38935b7871340046da1beab1db41dd7d3/Effects/Adapterer/adaptive-eq-gui.png</source>
+        <source file="adaptive-eq-gui@2x.png">https://github.com/thenarratorUK/reascripts/raw/5e8263e38935b7871340046da1beab1db41dd7d3/Effects/Adapterer/adaptive-eq-gui%402x.png</source>
       </version>
     </reapack>
-    <reapack name="Progressive Serial Compressor.jsfx" type="effect" desc="Compressorer">
-      <version name="1.0.4" author="David Winter" time="2026-09-11T19:17:38Z">
-        <changelog><![CDATA[Renames the displayed product to Compressorer while retaining the established package filename and path for compatibility with existing REAPER projects. Compressor DSP, controls and defaults are unchanged.]]></changelog>
-        <source main="main">https://github.com/thenarratorUK/reascripts/raw/566a5f2c8c68531b95d42b698153e8c7f80d1050/Effects/Progressive%20Serial%20Compressor/Progressive%20Serial%20Compressor.jsfx</source>
+    <reapack name="AllAGater.jsfx" type="effect" desc="AllAGater">
+      <version name="1.0.0" author="David Winter" time="2026-09-12T13:12:10Z">
+        <changelog><![CDATA[Initial public beta. Adds a curved finite-target gate using Expanderer's linked finite-RMS detector, signed hysteresis, linear-amplitude Attack and Release, retriggerable Hold, and genuine stereo Pre-open with reported PDC. Dialogue defaults are -38 dB Threshold, -80 dB Target, -16 dB Hysteresis, 2 ms Pre-open, 35 ms Attack, 4 ms Hold and 100 ms Release.]]></changelog>
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/5e8263e38935b7871340046da1beab1db41dd7d3/Effects/AllAGater/AllAGater.jsfx</source>
+      </version>
+    </reapack>
+    <reapack name="Compressorer.jsfx" type="effect" desc="Compressorer">
+      <version name="1.0.4" author="David Winter" time="2026-09-12T13:12:10Z">
+        <changelog><![CDATA[Publishes the final product and package name at Effects/Compressorer/Compressorer.jsfx. Compressor DSP, controls and defaults are unchanged.]]></changelog>
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/5e8263e38935b7871340046da1beab1db41dd7d3/Effects/Compressorer/Compressorer.jsfx</source>
       </version>
     </reapack>
     <reapack name="Expanderer.jsfx" type="effect" desc="Expanderer">

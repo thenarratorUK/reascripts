@@ -9,7 +9,10 @@ Total public scripts indexed: 77
 | Effect | What it does | Notes |
 | --- | --- | --- |
 | `TriLevelerPro.jsfx` | Learns a voice-level target and room-tone threshold, then applies limited fast, medium and slow voice correction while preserving ambience outside speech. | Early beta; includes live learning progress. |
-| `Adaptive Reference Matcher.jsfx` | Learns a narration baseline and optionally matches it to one of 14 embedded voice-reference profiles. | Beta release. |
+| `Adapterer.jsfx` | Learns a narration baseline and optionally matches it to one of 14 embedded voice-reference profiles. | Beta release. |
+| `AllAGater.jsfx` | Applies a curved finite-target gate with linked finite-RMS detection, signed hysteresis, linear-amplitude timing, and Pre-open. | Early beta. |
+| `Compressorer.jsfx` | Applies two or three gentle serial compressor stages with linked or manual setup and ReaComp-style timing. | Early beta. |
+| `Expanderer.jsfx` | Applies maximum attenuation near Threshold, then progressively returns to unity toward a lower Target. | Early beta. |
 
 ## Breath workflow
 
