@@ -1,7 +1,7 @@
 desc:Compressorer
 tags: dynamics compressor serial vocal speech
 author: David Winter
-version: 1.0.4
+version: 1.0.5
 options:maxmem=1000000
 
 /*
@@ -16,9 +16,24 @@ options:maxmem=1000000
   preferable to a custom interface for this effect.
 */
 
+/*
+  USER-EDITABLE DEFAULTS
+
+  The value between "=" and "<" on each slider line below is its default.
+  The main defaults are sliders 1-15. In Linked mode, sliders 16-33 are
+  generated stage readouts and are refreshed automatically, so their literal
+  defaults normally do not need editing.
+
+  Threshold Step is signed while preserving the established behaviour:
+    positive values move later thresholds downward (more negative),
+    negative values move later thresholds upward (less negative).
+  For example, Threshold 1 = -28 and Threshold Step = -8 generates
+  -28 / -20 / -12 dB.
+*/
+
 slider1:serial_stages=3<2,3,1>Serial Compressors
 slider2:threshold_start=-12<-60,0,0.1>Threshold 1 [dB]
-slider3:threshold_step=8<0,24,0.1>Threshold Step [dB]
+slider3:threshold_step=8<-24,24,0.1>Threshold Step [dB]
 slider4:common_ratio=1.5<1,10,0.05>Ratio
 slider5:meter_total_readout=0<0,120,0.1>Overall GR [dB]
 slider6:attack_start=2<0,500,0.1>Attack Start [ms]
@@ -398,13 +413,13 @@ out_pin:right output
     linked_1_release, linked_2_release, linked_3_release,
     maximum_precomp_ms)
   (
-    linked_1_threshold = threshold_start;
-    linked_2_threshold = threshold_start-threshold_step;
-    linked_3_threshold = threshold_start-2*threshold_step;
+    linked_1_threshold = PSCClamp(threshold_start, -120, 0);
+    linked_2_threshold = PSCClamp(threshold_start-threshold_step, -120, 0);
+    linked_3_threshold = PSCClamp(threshold_start-2*threshold_step, -120, 0);
     linked_1_ratio = linked_2_ratio = linked_3_ratio = common_ratio;
     // A symmetric knee extends this far on each side of its threshold. Half
     // the threshold spacing makes adjacent stage knee regions meet exactly.
-    linked_knee = PSCClamp(threshold_step*0.5, 0, 24);
+    linked_knee = PSCClamp(abs(threshold_step)*0.5, 0, 24);
     linked_1_knee = linked_2_knee = linked_3_knee = linked_knee;
     linked_1_attack = PSCClamp(attack_start, 0, 500);
     linked_2_attack = PSCClamp(attack_start+attack_step, 0, 500);
