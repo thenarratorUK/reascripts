@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<index version="1" name="thenarratorUK ReaScripts" commit="f0e049a79c1f9b69933445a7cd17a1b0c7b1f8a8">
+<index version="1" name="thenarratorUK ReaScripts" commit="c0b591ac024f75af2cbbea73f27226a1d050bb55">
   <category name="Plugins">
     <reapack name="Adaptive Phase Rotator.jsfx" type="effect" desc="Adaptive Phase Rotator">
       <version name="0.3.0" author="David Winter" time="2026-09-06T18:50:50Z">
@@ -23,6 +23,10 @@
       </version>
     </reapack>
     <reapack name="Compressorer.jsfx" type="effect" desc="Compressorer">
+      <version name="1.0.5" author="David Winter" time="2026-09-21T21:19:24Z">
+        <changelog><![CDATA[Allows signed Threshold Step values so linked stage thresholds can progress either downward or upward. Knee Size now follows half the absolute threshold spacing, generated thresholds are safely clamped, and the source includes a clearly marked user-editable defaults section.]]></changelog>
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/c0b591ac024f75af2cbbea73f27226a1d050bb55/Effects/Compressorer/Compressorer.jsfx</source>
+      </version>
       <version name="1.0.4" author="David Winter" time="2026-09-12T13:12:10Z">
         <changelog><![CDATA[Publishes the final product and package name at Effects/Compressorer/Compressorer.jsfx. Compressor DSP, controls and defaults are unchanged.]]></changelog>
         <source main="main">https://github.com/thenarratorUK/reascripts/raw/5e8263e38935b7871340046da1beab1db41dd7d3/Effects/Compressorer/Compressorer.jsfx</source>
