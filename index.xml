@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<index version="1" name="thenarratorUK ReaScripts" commit="add3e4ff268e5a94535609383e121e77d8d0703b">
+<index version="1" name="thenarratorUK ReaScripts" commit="2af34b5215de632d9df552bbccb9b30205d1ad9a">
   <category name="Plugins">
     <reapack name="Adaptive Phase Rotator.jsfx" type="effect" desc="Adaptive Phase Rotator">
       <version name="0.3.0" author="David Winter" time="2026-09-06T18:50:50Z">
@@ -119,6 +119,10 @@
       </version>
     </reapack>
     <reapack name="Chapter Region Maker.eel" type="script" desc="Chapter Maker">
+      <version name="3.2" author="David Winter" time="2026-09-30T16:52:36Z">
+        <changelog><![CDATA[Uses REAPER's atomic region-insert-and-edit action for both normal and auto-expanded selections, so the new region opens directly for naming.]]></changelog>
+        <source main="main">https://github.com/thenarratorUK/reascripts/raw/2af34b5215de632d9df552bbccb9b30205d1ad9a/Chapter%20Region%20Maker.eel</source>
+      </version>
       <version name="3.1" author="David Winter" time="2026-09-30T16:47:40Z">
         <changelog><![CDATA[Refreshes the single-item region path before opening the naming dialog, releasing the UI-refresh lock and updating the timeline so the new region is available to action 40616.]]></changelog>
         <source main="main">https://github.com/thenarratorUK/reascripts/raw/add3e4ff268e5a94535609383e121e77d8d0703b/Chapter%20Region%20Maker.eel</source>
