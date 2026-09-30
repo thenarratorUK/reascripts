@@ -1,11 +1,11 @@
 // @description Chapter Maker
-// @version 3.0
+// @version 3.1
 // @author David Winter
 /**
  * ReaScript Name: Chapter Maker
  * Author: David Winter
  * REAPER: 7.0
- * Version: 3.0
+ * Version: 3.1
  */
 
 usrconfig = 0; // 1 = display a prompt window at script run
@@ -85,6 +85,7 @@ cm_roomtone_needle = "room tone";
 // globals for bounds
 cm_rgn_start = 0;
 cm_rgn_end   = 0;
+cm_ui_refresh_held = 0;
 
 
 Audition = 0; // 1 only if the project has exactly 3 tracks: Narration/Narrative + Raw + Commercial
@@ -769,6 +770,11 @@ function CreateRegionFromSelectedItemsAndEdit(name_ptr) local(
     AddProjectMarker2(0, 1, start, r_end, name_ptr, -1, 0);
     CM_TickSmartInRRMForBounds(0, start, r_end);
 
+    // This path is called after the outer UI-refresh lock has been released.
+    // Refresh the timeline so the newly added region is visible to action 40616.
+    UpdateArrange();
+    UpdateTimeline();
+
     // put cursor inside the new region and open the edit dialog (prefilled with current name)
     mid = (start + r_end) * 0.5;
     SetEditCurPos(mid, 0, 0);
@@ -886,6 +892,7 @@ function Init()(
         ((retval_input == 1) || (usrconfig == 0)) ? (
             ClearConsole();
             PreventUIRefresh(1);
+            cm_ui_refresh_held = 1;
             Undo_BeginBlock();
             usrconfig == 1 ? ( SaveState() ) : 0;
 
@@ -898,6 +905,10 @@ function Init()(
             // If 2+ items were originally selected: NO CHANGE (still uses 40393).
             // If exactly 1 item was originally selected: create named region and open edit dialog.
             auto_mode == 1 ? (
+                // The direct AddProjectMarker2 + 40616 path needs a live timeline.
+                // Release the outer refresh lock before creating and editing the region.
+                PreventUIRefresh(-1);
+                cm_ui_refresh_held = 0;
                 CreateRegionFromSelectedItemsAndEdit(#auto_region_name);
             ) : (
                 CM_GetSelectedItemsBounds(cm_rgn_start, cm_rgn_end);
@@ -1020,7 +1031,7 @@ function Init()(
             // Makes it all undoable
             Undo_EndBlock(#undo_text, -1);
             UpdateArrange();
-            PreventUIRefresh(-1)
+            cm_ui_refresh_held ? PreventUIRefresh(-1);
             // and do a happy dance!
         ) : 0
     )
