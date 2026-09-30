@@ -1,11 +1,11 @@
 // @description Chapter Maker
-// @version 3.1
+// @version 3.2
 // @author David Winter
 /**
  * ReaScript Name: Chapter Maker
  * Author: David Winter
  * REAPER: 7.0
- * Version: 3.1
+ * Version: 3.2
  */
 
 usrconfig = 0; // 1 = display a prompt window at script run
@@ -85,7 +85,6 @@ cm_roomtone_needle = "room tone";
 // globals for bounds
 cm_rgn_start = 0;
 cm_rgn_end   = 0;
-cm_ui_refresh_held = 0;
 
 
 Audition = 0; // 1 only if the project has exactly 3 tracks: Narration/Narrative + Raw + Commercial
@@ -749,39 +748,6 @@ function AuditionExpandSelectionFromSingleItem() local(
 );
 
 
-function CreateRegionFromSelectedItemsAndEdit(name_ptr) local(
-  sel_cnt, i, it, pos, len, start, r_end, mid
-)(
-  sel_cnt = CountSelectedMediaItems(0);
-  sel_cnt > 0 ? (
-    start = 1000000000000.0; // sentinel
-    r_end = -1;
-
-    i = 0;
-    loop(sel_cnt,
-      it = GetSelectedMediaItem(0, i);
-      pos = GetMediaItemInfo_Value(it, "D_POSITION");
-      len = GetMediaItemInfo_Value(it, "D_LENGTH");
-      pos < start ? start = pos;
-      (pos + len) > r_end ? r_end = (pos + len);
-      i += 1;
-    );
-
-    AddProjectMarker2(0, 1, start, r_end, name_ptr, -1, 0);
-    CM_TickSmartInRRMForBounds(0, start, r_end);
-
-    // This path is called after the outer UI-refresh lock has been released.
-    // Refresh the timeline so the newly added region is visible to action 40616.
-    UpdateArrange();
-    UpdateTimeline();
-
-    // put cursor inside the new region and open the edit dialog (prefilled with current name)
-    mid = (start + r_end) * 0.5;
-    SetEditCurPos(mid, 0, 0);
-    Main_OnCommand(40616, 0); // Markers: Edit region near cursor
-  );
-);
-
 //This is where the magic is happening
 function Main() local(i, j, take, splits, item_pos, item_end, item_fade, asplits, edge, val)(
 
@@ -892,7 +858,6 @@ function Init()(
         ((retval_input == 1) || (usrconfig == 0)) ? (
             ClearConsole();
             PreventUIRefresh(1);
-            cm_ui_refresh_held = 1;
             Undo_BeginBlock();
             usrconfig == 1 ? ( SaveState() ) : 0;
 
@@ -901,15 +866,13 @@ function Init()(
 
             Main();
 
-            // Creates the region, using the command which also then brings it straight up for naming
-            // If 2+ items were originally selected: NO CHANGE (still uses 40393).
-            // If exactly 1 item was originally selected: create named region and open edit dialog.
+            // Creates the region using REAPER's atomic command, which also
+            // brings it straight up for naming. This handles both the normal
+            // selection and the auto-expanded single-item selection.
             auto_mode == 1 ? (
-                // The direct AddProjectMarker2 + 40616 path needs a live timeline.
-                // Release the outer refresh lock before creating and editing the region.
-                PreventUIRefresh(-1);
-                cm_ui_refresh_held = 0;
-                CreateRegionFromSelectedItemsAndEdit(#auto_region_name);
+                CM_GetSelectedItemsBounds(cm_rgn_start, cm_rgn_end);
+                Main_OnCommand(40393, 0);
+                CM_TickSmartInRRMForBounds(0, cm_rgn_start, cm_rgn_end);
             ) : (
                 CM_GetSelectedItemsBounds(cm_rgn_start, cm_rgn_end);
                 Main_OnCommand(40393, 0);
@@ -1031,7 +994,7 @@ function Init()(
             // Makes it all undoable
             Undo_EndBlock(#undo_text, -1);
             UpdateArrange();
-            cm_ui_refresh_held ? PreventUIRefresh(-1);
+            PreventUIRefresh(-1)
             // and do a happy dance!
         ) : 0
     )
