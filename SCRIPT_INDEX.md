@@ -2,7 +2,9 @@
 
 Index of the scripts currently published in this repository. The ReaPack `index.xml` is the install manifest; this file is the plain-language reference.
 
-Total public scripts indexed: 77
+Total public scripts indexed: 70
+
+> **Legacy workflow note:** The breath-detection/reduction workflow, the automated click-detection/reduction workflow, and `Re-Import Rendered Files.lua` are retained for reference and experimentation but are **not part of David Winter's current production workflow**. The two Click Double-Checker scripts are separate tail-click QC tools and remain current.
 
 ## JSFX effects
 
@@ -14,31 +16,40 @@ Total public scripts indexed: 77
 | `Compressorer.jsfx` | Applies two or three gentle serial compressor stages with linked or manual setup and ReaComp-style timing. | Early beta. |
 | `Expanderer.jsfx` | Applies maximum attenuation near Threshold, then progressively returns to unity toward a lower Target. | Early beta. |
 
-## Breath workflow
+## Legacy breath workflow
+
+These scripts are retained because the workflow may still be useful or interesting, but they are not part of the current recommended workflow.
 
 | Script | What it does | Notes |
 | --- | --- | --- |
-| `Breath Detection Advanced.lua` | Detects likely breaths on the Breaths track using silence removal, gate splitting, ZCR, RMS, peak, edge, and source-track checks. | Current breath detector. |
-| `Breath Reduction.lua` | Processes all breath markers, finds overlapping source audio, splits it, and reduces the matching pre-FX volume segment. | Batch reducer. |
-| `Breath Reduction (Single Item).lua` | Reduces the source audio for the breath marker at the edit cursor and auditions the result. | Manual reducer. |
-| `Breath Comparison.lua` | Stores before and after snapshots of the Breaths track and reports which breath items were removed. | QC helper. |
-| `Start or Recheck Breath.lua` | Auditions the next breath marker from the current cursor or saved breath checkpoint. | Navigation helper. |
-| `Check Next Breath.lua` | Accepts the current breath check, removes its marker, updates the checkpoint, and auditions the next marker. | Navigation helper. |
-| `Mark Breath.lua` | Removes the current breath marker and creates a Check Breath region for manual follow-up. | Manual review marker. |
-| `Rename Track to Breaths.lua` | Renames the selected track to Breaths. | Setup helper. |
-| `Copy to Breaths, Clicks and Renders Tracks.lua` | Copies items from the selected source track to Breaths, Clicks, and Renders workflow tracks, then removes the source track. | Track-name workflow helper. |
+| `Breath Detection Advanced.lua` | Detects likely breaths on the Breaths track using silence removal, gate splitting, ZCR, RMS, peak, edge, and source-track checks. | **Legacy workflow.** Former main breath detector. |
+| `Breath Reduction.lua` | Processes all breath markers, finds overlapping source audio, splits it, and reduces the matching pre-FX volume segment. | **Legacy workflow.** Batch reducer. |
+| `Breath Reduction (Single Item).lua` | Reduces the source audio for the breath marker at the edit cursor and auditions the result. | **Legacy workflow.** Manual reducer. |
+| `Breath Comparison.lua` | Stores before and after snapshots of the Breaths track and reports which breath items were removed. | **Legacy workflow.** QC helper. |
+| `Start or Recheck Breath.lua` | Auditions the next breath marker from the current cursor or saved breath checkpoint. | **Legacy workflow.** Navigation helper. |
+| `Check Next Breath.lua` | Accepts the current breath check, removes its marker, updates the checkpoint, and auditions the next marker. | **Legacy workflow.** Navigation helper. |
+| `Mark Breath.lua` | Removes the current breath marker and creates a Check Breath region for manual follow-up. | **Legacy workflow.** Manual review marker. |
+| `Rename Track to Breaths.lua` | Renames the selected track to Breaths. | **Legacy workflow.** Setup helper. |
+| `Copy to Breaths, Clicks and Renders Tracks.lua` | Copies items from the selected source track to Breaths, Clicks, and Renders workflow tracks, then removes the source track. | **Legacy workflow.** Track-name workflow helper. |
 
-## Click workflow
+## Legacy automated click workflow
+
+These automated detection/reduction scripts belong to the same older cleanup system as the breath workflow and are retained for reference rather than as the current recommended workflow.
 
 | Script | What it does | Notes |
 | --- | --- | --- |
-| `Click Detection.lua` | Detects click candidates, filters them, colours/cleans the result, and prepares Clicks/Renders workflow items. | Main click detector. |
-| `Start or Recheck Click.lua` | Auditions the next click marker from the current cursor or saved click checkpoint. | Navigation helper. |
-| `Check Next Click.lua` | Accepts the current click check, removes its marker, updates the checkpoint, and auditions the next marker. | Navigation helper. |
-| `Click Reduction (Silence).lua` | Splits the source audio around a click marker and reduces that segment with pre-FX volume automation. | For clicks handled by attenuation. |
-| `Click Reduction (Mid-Dialogue).lua` | Splits a padded source segment around a click marker, applies RX De-click as take FX, and creates a Check Click region. | Requires the configured RX plugin and preset. |
-| `Click Double-Checker.lua` | Moves the tails-check marker forward and plays the end of the current item. | Tail QC helper. |
-| `Click Double-Checker (Click Found).lua` | Marks a confirmed tail click, moves the tails-check marker forward, and plays the next tail area. | Tail QC helper. |
+| `Click Detection.lua` | Detects click candidates, filters them, colours/cleans the result, and prepares Clicks/Renders workflow items. | **Legacy workflow.** Former main click detector. |
+| `Start or Recheck Click.lua` | Auditions the next click marker from the current cursor or saved click checkpoint. | **Legacy workflow.** Navigation helper. |
+| `Check Next Click.lua` | Accepts the current click check, removes its marker, updates the checkpoint, and auditions the next marker. | **Legacy workflow.** Navigation helper. |
+| `Click Reduction (Silence).lua` | Splits the source audio around a click marker and reduces that segment with pre-FX volume automation. | **Legacy workflow.** For clicks handled by attenuation. |
+| `Click Reduction (Mid-Dialogue).lua` | Splits a padded source segment around a click marker, applies RX De-click as take FX, and creates a Check Click region. | **Legacy workflow.** Requires the configured RX plugin and preset. |
+
+## Tail-click QC
+
+| Script | What it does | Notes |
+| --- | --- | --- |
+| `Click Double-Checker.lua` | Moves the tails-check marker forward and plays the end of the current item. | Current Quick Keys-oriented tail-click QC helper. |
+| `Click Double-Checker (Click Found).lua` | Marks a confirmed tail click, moves the tails-check marker forward, and plays the next tail area. | Current companion to Click Double-Checker. |
 
 ## Punch, ripple, and pause editing
 
@@ -51,17 +62,14 @@ Total public scripts indexed: 77
 | `Smart Ripple Insert Punch and Roll.eel` | Silence-aware ripple-insert punch-and-roll helper using the Ripple Insert Start and End actions. | Depends on companion actions. |
 | `Multicast Ripple Punch In.lua` | Placeholder-aware multicast punch-in workflow with next-track selection and automation handling. | Workflow-specific. |
 | `Multicast TIghten Tail before Punch.lua` | Trims excess silence from the previous item before a multicast punch. | Used by multicast punch-in. |
-| `Pause Start.lua` | Finds and stores the practical start point of a pause from the selected time range. | Part one of two-script pause trimming. |
-| `Pause End.lua` | Finds the pause end, removes the pause with ripple editing, and clears stored pause points. | Part two of two-script pause trimming. |
 | `Pause Trimmer.eel` | Analyses a pause and removes excess length in one script. | Current single-script pause trimmer. |
-| `Toggle Pre-Roll and Inverse FX.lua` | Toggles record preroll and inversely bypasses FX on Track 1 and tracks named Live. | Track-1 and Live-track workflow helper. |
 
 ## Regions, placeholders, and project structure
 
 | Script | What it does | Notes |
 | --- | --- | --- |
 | `Chapter Region Maker.eel` | Trims chapter edges, creates or opens the chapter region, and runs related room-tone and automation safety actions. | Core chapter workflow. |
-| `Line Region Maker.eel` | Trims selected line items and creates regions using item or filename identifiers. | Line-region workflow. |
+| `Line Region Maker.eel` | Detects useful audio bounds for each media item and creates a region named from the source-file identifier. | Current game/ADR/line-delivery tool; intended for line-ID-based delivery and does not alter the item bounds. |
 | `Create Retail Sample Region.lua` | Creates a region from the time selection and names it 99 Retail_Sample. | Retail sample helper. |
 | `Create Voice Reference Placeholders.lua` | Creates voice-reference placeholder items from region or marker text. | Placeholder workflow. |
 | `Check Voice Reference.lua` | Previews voice-reference material by matching placeholder text to regions or markers. | Placeholder workflow. |
@@ -78,8 +86,7 @@ Total public scripts indexed: 77
 | `ADR Script Import.lua` | Imports ADR CSV data and creates named project regions. | Uses the ADR folder convention. |
 | `Build_and_Update_from_Sources.lua` | Builds or updates a project timeline from a single Sources CSV, inserting placeholders or takes. | Uses the Sources folder convention. |
 | `Bulk Import Pozotron Pickups.lua` | Imports Pozotron-style pickup CSV marker files and aligns them to matching regions. | Pickup import workflow. |
-| `Re-Import Rendered Files.lua` | Reimports rendered files and rebuilds the Breaths/Renders workflow state. | Uses Renders and Breaths conventions. |
-| `Export Command IDs.lua` | Exports REAPER Main-section action command IDs to CSV. | Dependency documentation helper. |
+| `Re-Import Rendered Files.lua` | Reimports rendered files and rebuilds the Breaths/Renders workflow state. | **Legacy workflow.** Belongs to the former breath/click cleanup system. |
 | `Pay Calculator.lua` | Calculates pay from selected-track take filenames and matching Sources CSV data. | Business workflow helper. |
 | `Change_Project_Start_Time.lua` | Sets the project start-time offset from the edit cursor. | Uses SWS/S&M. |
 
@@ -101,7 +108,6 @@ Total public scripts indexed: 77
 | `Increase Peak Display.lua` | Increases REAPER peak display gain. | Uses SWS/S&M. |
 | `Decrease Peak Display.lua` | Decreases REAPER peak display gain. | Uses SWS/S&M. |
 | `Reset Peak Display to 0.lua` | Resets REAPER peak display gain to 0 dB. | Uses SWS/S&M. |
-| `Toggle Live Mute.lua` | Toggles mute on tracks named Live. | Named-track helper. |
 
 ## Takes, item colours, and comping
 
@@ -123,12 +129,10 @@ Total public scripts indexed: 77
 | Script | What it does | Notes |
 | --- | --- | --- |
 | `Check for Empty Tracks in 15-Minute Checkpoint.lua` | Checks regions for empty tracks and reports items with take or item FX. | Checkpoint QC helper. |
-| `Check Gaps Between Items.lua` | Finds long pauses or gaps between items on non-excluded tracks. | Gap QC helper. |
+| `Check Gaps Between Items.lua` | Finds long pauses or gaps between items on non-excluded tracks. | Workflow-specific; tied to a particular multicast/project-structure variant rather than general audiobook QC. |
 | `Duplicate Empty Item Checker.lua` | Reports duplicate item notes and their item locations. | Project hygiene helper. |
-| `Mic Comparison Test Prep.lua` | Prepares mic comparison items by normalising loudness, compensating gain, and flagging peaks. | Uses SWS/NF loudness functions. |
 | `Play-Pause when Proofing.lua` | Toggles playback and moves the Proofed up to here marker when pausing. | Proofing helper. |
 | `Validate Items on Correct Tracks.lua` | Checks bracket-derived character names against track names and can move mismatched empty items. | Character-track validation helper. |
-| `Split Interview Audio.lua` | Splits and mutes Track 1 wherever Track 2 has items. | Fixed Track 1/2 interview helper. |
 
 ## General utilities
 
