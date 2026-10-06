@@ -62,5 +62,6 @@ These scripts are public, but some still assume a narration-oriented project lay
 - `Build_and_Update_from_Sources.lua` expects a `../Sources` folder and a single CSV there.
 - `Bulk Import Pozotron Pickups.lua` expects a `Pozotron` folder inside the project directory.
 - `Pay Calculator.lua` expects a `../Sources` CSV layout.
-- `Re-Import Rendered Files.lua` expects a `Breaths` track, a `00 Opening Credits` region, and a `Renders` folder.
-- A number of cleanup/QC scripts assume track names such as `Room Tone`, `Breaths`, `Clicks`, and `Renders`.
+- `Re-Import Rendered Files.lua` expects a `Breaths` track, a `00 Opening Credits` region, and a `Renders` folder. This script belongs to the **legacy breath/click cleanup workflow** and is not part of the current recommended production workflow.
+- The scripts documented under the legacy breath and automated-click sections of `SCRIPT_INDEX.md` assume track names such as `Breaths`, `Clicks`, and `Renders`; they are retained for reference rather than as the current workflow.
+- Current room-tone helpers may assume a track named `Room Tone`.
