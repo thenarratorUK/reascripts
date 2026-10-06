@@ -60,11 +60,22 @@ after installing either Remote Recorder package, then open it from
 **Extensions > Remote Recorder**. The JSFX packages will be available in the FX
 browser with their corresponding **JS:** names.
 
+## Legacy workflows
+
+The repository retains an older automated breath/click cleanup workflow because
+it may still be useful for reference or experimentation. Those scripts are
+clearly marked as legacy in `SCRIPT_INDEX.md` and are **not part of David
+Winter's current production workflow**. `Re-Import Rendered Files.lua` belongs
+to that same legacy system.
+
+The two Click Double-Checker scripts are different: they are current tail-click
+QC helpers and are not part of the obsolete automated click-detection workflow.
+
 ## Notes
 - Many scripts expect REAPER 7 and the SWS/S&M extension.
 - Some scripts depend on companion scripts from this same repository or on specific folder and track conventions.
 - See `DEPENDENCIES.md` for setup notes before using the more workflow-specific actions.
-- See `SCRIPT_INDEX.md` for a quick summary of what each script does.
+- See `SCRIPT_INDEX.md` for a quick summary of what each script does and whether it is current or legacy.
 
 ## Scope
-This public repo intentionally excludes some highly personal or one-off workflow scripts, while keeping the broader narration toolkit and the scripts that are useful to teach or reuse.
+This public repo intentionally excludes highly personal, one-off, and private workflow utilities, while keeping the broader narration/voiceover toolkit, reusable specialist workflows such as line delivery for games/ADR, and selected legacy workflows that remain useful for reference.
