@@ -250,11 +250,6 @@
         <source main="main">https://github.com/thenarratorUK/reascripts/raw/294314dba877f5aaf60933fa0d09f2755f29aeea/Duplicate%20Empty%20Item%20Checker.lua</source>
       </version>
     </reapack>
-    <reapack name="Export Command IDs.lua" type="script" desc="Export Command IDs">
-      <version name="1.0" author="David Winter" time="2026-04-17T19:52:02Z">
-        <source main="main">https://github.com/thenarratorUK/reascripts/raw/294314dba877f5aaf60933fa0d09f2755f29aeea/Export%20Command%20IDs.lua</source>
-      </version>
-    </reapack>
     <reapack name="Extract Best Takes from Tracks 1&amp;2 to Tracks 3&amp;4.lua" type="script" desc="Extract Best Takes from Tracks 1&amp;2 to Tracks 3&amp;4">
       <version name="1.0" author="David Winter" time="2026-04-17T19:52:02Z">
         <source main="main">https://github.com/thenarratorUK/reascripts/raw/294314dba877f5aaf60933fa0d09f2755f29aeea/Extract%20Best%20Takes%20from%20Tracks%201%262%20to%20Tracks%203%264.lua</source>
@@ -290,11 +285,6 @@
         <source main="main">https://github.com/thenarratorUK/reascripts/raw/294314dba877f5aaf60933fa0d09f2755f29aeea/Mark%20Breath.lua</source>
       </version>
     </reapack>
-    <reapack name="Mic Comparison Test Prep.lua" type="script" desc="Mic Comparison Test Prep — pick 20 items (skipping colored), normalize to LUFS-I map, +3 dB compensate, flag peaks &gt;= 0 dBFS">
-      <version name="1.2" author="David Winter" time="2026-04-17T19:52:02Z">
-        <source main="main">https://github.com/thenarratorUK/reascripts/raw/294314dba877f5aaf60933fa0d09f2755f29aeea/Mic%20Comparison%20Test%20Prep.lua</source>
-      </version>
-    </reapack>
     <reapack name="Move from Parent to Child based on tag.lua" type="script" desc="Distribute Items To Character Subtracks Based On Notes (SWS collapse + ordered child color gradient)">
       <version name="1.2" author="David Winter" time="2026-04-17T19:52:02Z">
         <source main="main">https://github.com/thenarratorUK/reascripts/raw/294314dba877f5aaf60933fa0d09f2755f29aeea/Move%20from%20Parent%20to%20Child%20based%20on%20tag.lua</source>
@@ -318,16 +308,6 @@
     <reapack name="Nudge Peak Volume Down with Automation.lua" type="script" desc="Pre-FX Peak Dip Automation (Follow Exact Action Steps).lua">
       <version name="3.2" author="David Winter" time="2026-04-17T19:52:02Z">
         <source main="main">https://github.com/thenarratorUK/reascripts/raw/294314dba877f5aaf60933fa0d09f2755f29aeea/Nudge%20Peak%20Volume%20Down%20with%20Automation.lua</source>
-      </version>
-    </reapack>
-    <reapack name="Pause End.lua" type="script" desc='Split item at start &amp; end of time selection, then every 1ms, analyze peaks, save cursor position as "Pause_End", add a split, create a time selection between Pause_Start and Pause_End, enable Ripple Editing (All Tracks), remove contents of the time selection, restore the previous Ripple Editing state, and forget stored Pause_Start and Pause_End locations'>
-      <version name="1.9" author="David Winter" time="2026-04-17T19:52:02Z">
-        <source main="main">https://github.com/thenarratorUK/reascripts/raw/294314dba877f5aaf60933fa0d09f2755f29aeea/Pause%20End.lua</source>
-      </version>
-    </reapack>
-    <reapack name="Pause Start.lua" type="script" desc='Split item at start &amp; end of time selection, then every 1ms, analyze peaks, move cursor 2.25s right, undo splits, save cursor position as "Pause_Start", and add a split'>
-      <version name="1.0" author="David Winter" time="2026-04-17T19:52:02Z">
-        <source main="main">https://github.com/thenarratorUK/reascripts/raw/294314dba877f5aaf60933fa0d09f2755f29aeea/Pause%20Start.lua</source>
       </version>
     </reapack>
     <reapack name="Pause Trimmer.eel" type="script" desc="Pause Trimmer">
@@ -430,11 +410,6 @@
         <source main="main">https://github.com/thenarratorUK/reascripts/raw/5dab56d2d89983fa8bd8024c5323690a105ded4a/Smart%20Ripple%20Insert%20Punch%20and%20Roll.eel</source>
       </version>
     </reapack>
-    <reapack name="Split Interview Audio.lua" type="script" desc="Mutually exclusive comp: mute Track 1 wherever Track 2 has items">
-      <version name="1.1" author="David Winter" time="2026-04-17T19:52:02Z">
-        <source main="main">https://github.com/thenarratorUK/reascripts/raw/294314dba877f5aaf60933fa0d09f2755f29aeea/Split%20Interview%20Audio.lua</source>
-      </version>
-    </reapack>
     <reapack name="Start or Recheck Breath.lua" type="script" desc="Start or Recheck Breath">
       <version name="1.2" author="David Winter" time="2026-04-17T19:52:02Z">
         <source main="main">https://github.com/thenarratorUK/reascripts/raw/294314dba877f5aaf60933fa0d09f2755f29aeea/Start%20or%20Recheck%20Breath.lua</source>
@@ -458,16 +433,6 @@
     <reapack name="Toggle Item Colours.lua" type="script" desc="Toggle Custom Colors for Selected Items (None, Orange, Green)">
       <version name="1.0" author="David Winter" time="2026-04-17T19:52:02Z">
         <source main="main">https://github.com/thenarratorUK/reascripts/raw/294314dba877f5aaf60933fa0d09f2755f29aeea/Toggle%20Item%20Colours.lua</source>
-      </version>
-    </reapack>
-    <reapack name="Toggle Live Mute.lua" type="script" desc='Toggle Mute for Tracks Named "Live"'>
-      <version name="1.0" author="David Winter" time="2026-04-17T19:52:02Z">
-        <source main="main">https://github.com/thenarratorUK/reascripts/raw/294314dba877f5aaf60933fa0d09f2755f29aeea/Toggle%20Live%20Mute.lua</source>
-      </version>
-    </reapack>
-    <reapack name="Toggle Pre-Roll and Inverse FX.lua" type="script" desc='Toggle Pre-roll and Handle FX on Track 1 and Any Track Named "Live"'>
-      <version name="1.7" author="David Winter" time="2026-04-17T19:52:02Z">
-        <source main="main">https://github.com/thenarratorUK/reascripts/raw/294314dba877f5aaf60933fa0d09f2755f29aeea/Toggle%20Pre-Roll%20and%20Inverse%20FX.lua</source>
       </version>
     </reapack>
     <reapack name="Turn All Multitake Items Red.lua" type="script" desc="Turn All Multitake Items Red">
